@@ -466,7 +466,6 @@ ${url}`;
                 MBTI for the Web3 degens
               </p>
               <p className="description" style={{ marginBottom: '1.5rem' }}>
-                Find your on-chain personality — from Diamond Hands to Rug Chasers.
               </p>
 
               <div className="sample-questions" style={{ marginBottom: '1rem' }}>
