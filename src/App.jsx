@@ -459,7 +459,7 @@ ${url}`;
         <div className="card home-card">
           <div className="home-content">
             <div className="home-text">
-              <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+              <h1 className="text-3xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text" style={{ lineHeight: '1.2', paddingBottom: '0.25rem' }}>
                 DegenType
               </h1>
               <p className="tagline" style={{ margin: '1rem 0 0.5rem' }}>
@@ -601,16 +601,22 @@ ${url}`;
       <div style={{ minHeight: '100vh', padding: '0.3rem 1rem' }}>
         <div className="card">
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+            <h1 className="text-2xl md:text-3xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text" style={{ lineHeight: '1.2', paddingBottom: '0.25rem' }}>
               Your DegenType Result
             </h1>
             <div className="result-card">
-              <h2 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#3b82f6' }}>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#3b82f6' }}>
                 {mbtiType}
               </h2>
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', color: '#9ca3af' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#3b82f6' }}>
                 {result.name}
               </h3>
+              <p style={{ fontSize: '1rem', color: '#9ca3af', fontStyle: 'italic', marginBottom: '0.5rem' }}>
+                {result.tagline}
+              </p>
+              <p style={{ fontSize: '0.875rem', lineHeight: '1.75', marginBottom: '1rem' }}>
+                {result.description}
+              </p>
               <div style={{ 
                 background: 'rgba(255, 255, 255, 0.05)',
                 padding: '1rem',
@@ -642,9 +648,6 @@ ${url}`;
                   score={dimensionScores.OM}
                 />
               </div>
-              <p style={{ fontSize: '1.125rem', lineHeight: '1.75' }}>
-                {result.description}
-              </p>
               {!allQuestionsAnswered && (
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '1rem' }}>
                   Note: More answers would provide more accurate results
@@ -777,7 +780,7 @@ ${url}`;
       <div style={{ minHeight: '100vh', padding: '0.3rem 1rem' }}>
         <div className="card">
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+            <h1 className="text-3xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text" style={{ lineHeight: '1.2', paddingBottom: '0.25rem' }}>
               DegenType
             </h1>
             <p style={{ fontSize: '1.125rem', color: '#9ca3af', marginBottom: '3rem' }}>
