@@ -17,19 +17,46 @@ export function calculateMBTI(answers) {
     const dimension = question.type; // e.g., "DB", "TV", etc.
     const isPositive = question.positiveType === dimension[0]; // e.g., "D" in "DB"
     
-    // Add the answer value to the appropriate dimension
-    // If positiveType is first letter (e.g., "D" in "DB"), add directly
-    // If positiveType is second letter (e.g., "B" in "DB"), subtract
     scores[dimension] += isPositive ? answer : -answer;
   });
 
-  // Determine the type based on scores
-  const type = (
-    (scores.DB >= 0 ? 'D' : 'B') +
-    (scores.TV >= 0 ? 'T' : 'V') +
-    (scores.HE >= 0 ? 'H' : 'E') +
-    (scores.OM >= 0 ? 'M' : 'O')
-  );
+  // First letter: D or B
+  const firstLetter = scores.DB >= 0 ? 'D' : 'B';
+  
+  // Second letter: T or V or H
+  let secondLetter;
+  if (firstLetter === 'D') {
+    // Degens can be Traders (T) or Visionaries (V)
+    secondLetter = scores.TV >= 0 ? 'T' : 'V';
+  } else {
+    // Builders can be HODLers (H), Traders (T), or Visionaries (V)
+    if (Math.abs(scores.HE) > Math.abs(scores.TV)) {
+      secondLetter = scores.HE >= 0 ? 'H' : 'T';
+    } else {
+      secondLetter = scores.TV >= 0 ? 'T' : 'V';
+    }
+  }
+  
+  // Third letter: H, E, V, or O
+  let thirdLetter;
+  if (firstLetter === 'D') {
+    // Degens use HE score directly
+    thirdLetter = scores.HE >= 0 ? 'H' : 'E';
+  } else if (secondLetter === 'H') {
+    // Builder HODLers use TV score for VO
+    thirdLetter = scores.TV >= 0 ? 'V' : 'O';
+  } else if (secondLetter === 'T') {
+    // Builder Traders use HE score for HV
+    thirdLetter = scores.HE >= 0 ? 'H' : 'V';
+  } else {
+    // Builder Visionaries use HE score for HE
+    thirdLetter = scores.HE >= 0 ? 'H' : 'E';
+  }
+  
+  // Fourth letter: M or O
+  const fourthLetter = scores.OM >= 0 ? 'M' : 'O';
+
+  const type = firstLetter + secondLetter + thirdLetter + fourthLetter;
 
   // Verify the type exists in our descriptions
   if (!typeDescriptions[type]) {

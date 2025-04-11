@@ -253,6 +253,12 @@ export const typeDescriptions = {
     tagline: "Price is noise. Blocks are truth.",
     color: "var(--accent)"
   },
+  BVEO: {
+    name: "The Visionary Explorer",
+    description: "Builds across chains, exits when the vision is complete.",
+    tagline: "Build everywhere, exit wisely.",
+    color: "var(--accent)"
+  },
   BHEM: { 
     name: "The Ghost Wallet", 
     description: "Moves size in silence. Leaves whales guessing.",
@@ -263,6 +269,18 @@ export const typeDescriptions = {
     name: "The Bag Whisperer", 
     description: "Portfolio is all vibe plays. Somehow up bad, spiritually up.",
     tagline: "These bags chose me.",
+    color: "var(--accent)"
+  },
+  BTHO: {
+    name: "The Trader HODLer",
+    description: "Trades with conviction, holds with purpose, bridges with wisdom.",
+    tagline: "Trade smart, hold strong.",
+    color: "var(--accent)"
+  },
+  BVEH: {
+    name: "The Visionary HODLer",
+    description: "Builds with conviction, holds with purpose, exits with wisdom.",
+    tagline: "Build to last, hold to win.",
     color: "var(--accent)"
   },
 
@@ -315,6 +333,54 @@ export const typeDescriptions = {
     name: "The Bridge Architect", 
     description: "Keeps ETH on 5 chains. Gas optimizer in human form.",
     tagline: "My bags are everywhere.",
+    color: "var(--accent)"
+  },
+  BTHE: {
+    name: "The Strategic Trader",
+    description: "Trades with precision, holds with patience, exits with timing.",
+    tagline: "Trade the plan, hold the vision.",
+    color: "var(--accent)"
+  },
+  BTVE: {
+    name: "The Visionary Trader",
+    description: "Sees the future, trades the present, exits with purpose.",
+    tagline: "Trade the trend, build the future.",
+    color: "var(--accent)"
+  },
+  BVEM: {
+    name: "The Visionary Maxi",
+    description: "Builds with vision, committed to one chain, exits strategically.",
+    tagline: "One chain, infinite possibilities.",
+    color: "var(--accent)"
+  },
+  BTHM: {
+    name: "The Chain Builder",
+    description: "Builds steadily on one chain, holds through storms, never wavers.",
+    tagline: "Build deep, not wide.",
+    color: "var(--accent)"
+  },
+  BTEO: {
+    name: "The Chain Explorer",
+    description: "Trades across chains, always seeking the next big opportunity.",
+    tagline: "Every chain has potential.",
+    color: "var(--accent)"
+  },
+  BTVO: {
+    name: "The Trading Voyager",
+    description: "Charts the future across multiple chains, trading with vision.",
+    tagline: "Trade globally, think locally.",
+    color: "var(--accent)"
+  },
+  BVHM: {
+    name: "The Visionary Maxi Builder",
+    description: "Builds with long-term vision, committed to one ecosystem.",
+    tagline: "One chain, endless innovation.",
+    color: "var(--accent)"
+  },
+  BVHO: {
+    name: "The Multichain Visionary",
+    description: "Builds and holds across chains, guided by long-term vision.",
+    tagline: "Build everywhere, hold forever.",
     color: "var(--accent)"
   }
 };
