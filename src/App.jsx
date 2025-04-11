@@ -246,7 +246,7 @@ export default function App() {
           <div className="home-content">
             <div className="home-text">
               <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                DegenMind
+                DegenType
               </h1>
               <p className="tagline" style={{ margin: '1rem 0 0.5rem' }}>
                 🔮 What kind of crypto degen are you?
@@ -285,7 +285,7 @@ export default function App() {
               </p>
 
               <button onClick={startTest} className="start-button" style={{ margin: '0.5rem 0 1rem' }}>
-                Start DegenMind Test
+                Start DegenType Test
               </button>
 
               <p className="disclaimer" style={{ margin: '0.25rem 0' }}>
@@ -371,13 +371,13 @@ export default function App() {
     const allQuestionsAnswered = answers.length === questions.length;
 
     const tweetText = encodeURIComponent(
-      `I'm a ${result.name} (${mbtiType}) on DegenMind! 🚀\n\n` +
+      `I'm a ${result.name} (${mbtiType}) on DegenType! 🚀\n\n` +
       `Degen Dimension Breakdown:\n` +
       `• ${mbtiType[0] === 'D' ? 'Degen' : 'Builder'} (${Math.abs(scores.DB) * 20}%)\n` +
       `• ${mbtiType[1] === 'T' ? 'Trader' : 'Visionary'} (${Math.abs(scores.TV) * 20}%)\n` +
       `• ${mbtiType[2] === 'H' ? 'HODLer' : 'Exit Liquidity'} (${Math.abs(scores.HE) * 20}%)\n` +
       `• ${mbtiType[3] === 'M' ? 'Maxi' : 'Omni-Chain'} (${Math.abs(scores.OM) * 20}%)\n\n` +
-      `Find your on-chain personality at DegenMind!`
+      `Find your on-chain personality at ${window.location.origin}`
     );
     const tweetURL = `https://twitter.com/intent/tweet?text=${tweetText}`;
 
@@ -386,7 +386,7 @@ export default function App() {
         <div className="card">
           <div style={{ textAlign: 'center' }}>
             <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-              Your DegenMind Result
+              Your DegenType Result
             </h1>
             <div className="result-card">
               <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#3b82f6' }}>
@@ -565,7 +565,7 @@ export default function App() {
         <div className="card">
           <div style={{ textAlign: 'center' }}>
             <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-              DegenMind
+              DegenType
             </h1>
             <p style={{ fontSize: '1.125rem', color: '#9ca3af', marginBottom: '3rem' }}>
               Discover your on-chain personality
