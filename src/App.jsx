@@ -190,14 +190,12 @@ export default function App() {
     const result = typeDescriptions[mbtiType];
     const { dimensionScores, percentages } = calculateScores();
     
-    const shareText = `I'm a ${mbtiType} (${result.name}) on DegenType! 🚀\n\n` +
-      `Degen Dimension Breakdown:\n` +
-      `• ${mbtiType[0] === 'D' ? 'Degen' : 'Builder'} (${percentages.DB}%)\n` +
-      `• ${mbtiType[1] === 'T' ? 'Trader' : 'Visionary'} (${percentages.TV}%)\n` +
-      `• ${mbtiType[2] === 'H' ? 'HODLer' : 'Exit Liquidity'} (${percentages.HE}%)\n` +
-      `• ${mbtiType[3] === 'M' ? 'Maxi' : 'Omni-Chain'} (${percentages.OM}%)\n\n` +
-      `Find your on-chain personality at ${url}\n\n` +
-      `#DegenType #Web3MBTI`;
+    const shareText = `I'm a ${result.name} (${mbtiType}) in the crypto world! 🚀
+
+Degen Dimensions:
+${Object.entries(dimensionScores).map(([dimension, score]) => `${dimension}: ${percentages[dimension]}%`).join('\n')}
+
+${url}`;
     
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
     window.open(twitterUrl, '_blank');
