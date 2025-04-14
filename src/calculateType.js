@@ -37,19 +37,13 @@ export function calculateMBTI(answers) {
     }
   }
   
-  // Third letter: H, E, V, or O
+  // Third letter: H or E
   let thirdLetter;
   if (firstLetter === 'D') {
     // Degens use HE score directly
     thirdLetter = scores.HE >= 0 ? 'H' : 'E';
-  } else if (secondLetter === 'H') {
-    // Builder HODLers use TV score for VO
-    thirdLetter = scores.TV >= 0 ? 'V' : 'O';
-  } else if (secondLetter === 'T') {
-    // Builder Traders use HE score for HV
-    thirdLetter = scores.HE >= 0 ? 'H' : 'V';
   } else {
-    // Builder Visionaries use HE score for HE
+    // Builders use HE score for HE
     thirdLetter = scores.HE >= 0 ? 'H' : 'E';
   }
   
