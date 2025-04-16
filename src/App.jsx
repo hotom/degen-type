@@ -79,6 +79,7 @@ export default function App() {
   const [mbtiType, setMbtiType] = useState(null);
   const [showQuiz, setShowQuiz] = useState(false);
   const [allQuestionsAnswered, setAllQuestionsAnswered] = useState(false); // Will be set when results are shown
+  const [showTypesPage, setShowTypesPage] = useState(false); // <-- New State
 
   const [percentages, setPercentages] = useState({});
 
@@ -304,89 +305,137 @@ export default function App() {
     window.open(twitterUrl, '_blank');
   };
 
-  // Home Screen
-  if (!showQuiz && !showResults) {
-    return (
-      // Revert to standard dark background, image is now a separate element
-      <div 
-        className="container mx-auto px-4 pb-8 min-h-screen flex flex-col items-center justify-center text-white bg-gradient-to-b from-slate-800 to-slate-900 home-container"
-      >
-        {/* Content container - standard vertical flow */}
-        <div className="home-content w-full max-w-xl text-center flex-grow flex flex-col justify-center relative z-10 pt-6 pb-12">
-          {/* --- DegenType Title Moved OUTSIDE the image background container --- */}
-          <h1 className="text-3xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text leading-relaxed pb-2" > 
-            DegenType
-          </h1>
+  // --- Render Logic --- 
 
-          {/* home-text container now relative, with padding - holds tagline and uncover text */}
-          <div className="home-text mb-8 relative py-12 px-4 rounded-lg overflow-hidden shadow-lg"> 
-            {/* Image Div: absolute positioned INSIDE home-text, behind text */} 
-            <div 
-              className="absolute inset-0 opacity-40 z-0" /* Opacity 40% */
-              style={{
-                backgroundImage: 'url(/home_background.jpg)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center center',
-                backgroundRepeat: 'no-repeat'
-              }}
-            />
-            {/* Lighter gray text */} 
-            {/* Re-added text shadow for visibility */}
-            <p className="tagline text-xl text-gray-200 mb-6 relative z-10 [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.8)]"> 
-              MBTI for Crypto Degens
-            </p>
-            {/* --- Re-added Text --- */}
-            {/* Re-added text shadow for visibility */}
-            <p className="text-base text-gray-300 mb-6 max-w-md mx-auto relative z-10 [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.8)]">
-              Uncover your on-chain personality in just a few questions.
-            </p>
-          </div>
-          {/* --- Degen Dimensions List - Now follows home-text --- */}
-          <div className="text-left max-w-md mx-auto px-4"> 
-            <p className="text-base text-gray-300 mb-3">
-              You'll be scored across four key crypto instincts:
-            </p>
-            <ul className="list-none space-y-2 text-sm text-gray-200">
-              <li><span className="mr-2 text-lg">🧠</span> <span className="font-semibold">Risk:</span> Ape vs. Builder</li>
-              <li><span className="mr-2 text-lg">💎</span> <span className="font-semibold">Holding:</span> Diamond Hands vs. Paper Hands</li>
-              <li><span className="mr-2 text-lg">🌐</span> <span className="font-semibold">Chain:</span> Maxi vs. Omni</li>
-              <li><span className="mr-2 text-lg">🪙</span> <span className="font-semibold">Asset:</span> Token vs. NFT</li>
+  // --- Types Page View --- (Moved to be checked first)
+  if (showTypesPage) {
+    return (
+      // Reverted background to sky-500, text to white
+      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center text-white bg-sky-500"> 
+        {/* Reverted Back button text color */} 
+        <button 
+           onClick={() => setShowTypesPage(false)}
+           className="absolute top-4 left-4 text-sm text-gray-200 hover:text-white transition-colors duration-200 z-10 bg-transparent border-none p-2"
+           aria-label="Back to Home"
+         >
+           ← Back to Home
+         </button>
+
+        {/* Added Wrapper Div for layered effect */} 
+        <div className="w-full max-w-4xl mt-16 mb-8 bg-slate-800/30 backdrop-blur-sm rounded-lg p-6 md:p-8 shadow-xl"> 
+          {/* Reverted Title color */} 
+          <h1 className="text-3xl md:text-4xl font-bold mb-8 text-white text-center">Understanding DegenTypes</h1>
+          
+          {/* Dimensions Section */} 
+          <div className="mb-12 px-4"> 
+            {/* Reverted Title color */} 
+            <h2 className="text-2xl font-semibold mb-4 text-white text-center">The Four Dimensions</h2>
+            {/* Reverted List text color */} 
+            <ul className="space-y-2 text-lg max-w-md mx-auto text-left text-gray-100"> 
+              {dimensions.map(dim => (
+                <li key={dim.key}>
+                  <span className="font-bold">{dim.name}:</span> {dim.type1} vs. {dim.type2}
+                </li>
+              ))}
             </ul>
           </div>
-          {/* --- End Re-added Text / Dimension list --- */}
 
-          {/* --- Buttons and Footer Section - Positioned normally AFTER the dimension list --- */}
-          <div className="mt-8 relative z-10"> 
-             <div className="flex flex-col gap-4 items-center mb-8">
-               <button
-                 onClick={() => startTest('lite')}
-                 className="bg-gradient-to-r from-purple-600 to-blue-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:opacity-90 transition-opacity w-64 shadow-lg"
-               >
-                 Lite Test (~2 mins)
-               </button>
-               <button
-                 onClick={() => startTest('standard')}
-                 className="bg-gradient-to-r from-indigo-600 to-cyan-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:opacity-90 transition-opacity w-64 shadow-lg"
-               >
-                 Standard (~5 mins)
-               </button>
-             </div>
-             <p className="text-sm text-gray-400 mb-8 text-center"> 
-               <a href="https://x.com/CheckmateFDN" target="_blank" rel="noopener noreferrer" className="text-teal-400 hover:text-teal-300 underline">
-                 Follow us on X
-               </a>
-             </p>
-
-             {/* Footer */} 
-             <footer className="w-full text-center text-xs text-gray-400">
-               <p className="mb-1">© 2025 Checkmate Foundation. All rights reserved</p>
-               <div className="flex justify-center gap-4">
-                 <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-200 underline">Terms & Conditions</a>
-                 <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-200 underline">Privacy Policy</a>
-               </div>
-             </footer>
+          {/* Types Section */} 
+          <div> 
+            {/* Reverted Title color */} 
+            <h2 className="text-2xl font-semibold mb-6 text-white text-center">The 16 DegenTypes</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-4"> 
+              {Object.entries(typeDescriptions).map(([code, data]) => (
+                // Reverted card background and text colors 
+                <div key={code} className="p-4 bg-sky-700/50 rounded-lg shadow text-left flex flex-col h-full"> 
+                  <p className="font-bold text-lg mb-1 text-white">{code} - {data.name}</p>
+                  <p className="text-xs italic text-sky-200 mb-2">{data.tagline}</p> 
+                  <p className="text-sm text-gray-200 flex-grow">{data.description}</p> 
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+
+         {/* Footer - Reverted text colors */} 
+         <footer className="w-full text-center text-xs text-gray-100 mt-auto pb-4 z-10 [text-shadow:1px_1px_1px_rgb(0_0_0_/_0.5)]">
+          <p className="mb-1">© 2025 Checkmate Foundation. All rights reserved</p>
+          <div className="flex justify-center gap-4">
+            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white underline">Terms & Conditions</a>
+            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white underline">Privacy Policy</a>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
+  // Home Screen (Check this *after* Types Page)
+  if (!showQuiz && !showResults) { 
+    return (
+      // New layout: Full background image, content centered with padding
+      // Changed justify-end back to justify-center, removed pb-32
+      <div 
+        className="container mx-auto px-4 min-h-screen flex flex-col justify-center items-center text-white home-container relative" 
+        style={{
+          backgroundImage: 'url(/home_background_v2.jpg)', 
+          backgroundSize: 'cover',
+          backgroundPosition: 'center center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
+        {/* Removed Overlay Div */}
+
+        {/* Main Content Area - Centered Horizontally and Vertically */}
+        {/* Reduced top padding pt-60 -> pt-16 */} 
+        <div className="w-full max-w-xl text-center z-10 pt-16">
+          {/* Text Content - White with Shadow */}
+          {/* Title Line 1 */}
+          <h1 className="text-4xl md:text-5xl font-bold mb-1 text-white [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.6)]"> {/* Reduced mb-4 to mb-1 */} 
+            DegenType
+          </h1>
+          {/* Title Line 2 - Smaller */}
+          <p className="text-2xl md:text-3xl mb-8 text-white [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.6)]"> {/* New line, smaller size */} 
+            MBTI for Crypto Degens
+          </p>
+          {/* Tagline */}
+          <p className="text-lg md:text-xl mb-8 text-white [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.6)]"> 
+            Find your crypto personality
+          </p>
+
+          {/* Button Area - Positioned below text */}
+          <div className="flex flex-col gap-4 items-center mt-20">
+            <button
+              onClick={() => startTest('lite')}
+              // Lighter sky blue background
+              className="bg-sky-400 hover:bg-sky-500 text-white px-8 py-3 rounded-full text-lg font-semibold transition-colors w-64 shadow-lg"
+            >
+              Lite Test (~2 mins)
+            </button>
+            <button
+              onClick={() => startTest('standard')}
+              // Darker sky blue background
+              className="bg-sky-600 hover:bg-sky-700 text-white px-8 py-3 rounded-full text-lg font-semibold transition-colors w-64 shadow-lg"
+            >
+              Standard (~5 mins)
+            </button>
+            {/* Restyled button */}
+            <button 
+              onClick={() => setShowTypesPage(true)}
+              className="bg-gray-600 hover:bg-gray-700 text-white text-sm px-4 py-1 rounded-full transition-colors shadow focus:outline-none mt-4"
+            >
+              Learn about the 16 DegenTypes
+            </button>
+          </div>
+        </div>
+
+        {/* Footer - Pushed to bottom by parent flex */}
+        <footer className="w-full text-center text-xs text-gray-100 mt-auto pb-4 z-10 [text-shadow:1px_1px_1px_rgb(0_0_0_/_0.5)]">
+          <p className="mb-1">© 2025 Checkmate Foundation. All rights reserved</p>
+          <div className="flex justify-center gap-4">
+            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white underline">Terms & Conditions</a>
+            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white underline">Privacy Policy</a>
+          </div>
+        </footer>
       </div>
     );
   }
@@ -396,14 +445,15 @@ export default function App() {
     const result = typeDescriptions[mbtiType];
     if (!result) {
       console.error(`Description for type ${mbtiType} not found!`);
-      return <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-800 to-slate-900 text-white">Error: Result description not found. Please retake the quiz.</div>;
+      // Revert fallback to white bg
+      return <div className="min-h-screen flex items-center justify-center bg-white text-red-600">Error: Result description not found. Please retake the quiz.</div>; 
     }
 
     return (
-      // Darker background
-      <div className="container mx-auto px-4 pb-8 min-h-screen flex flex-col items-center justify-center text-white bg-gradient-to-b from-slate-800 to-slate-900 results-container">
+      // Revert background to white, default text to dark gray
+      <div className="container mx-auto px-4 pb-8 min-h-screen flex flex-col items-center justify-center text-gray-800 bg-white results-container">
         <div className="w-full max-w-2xl text-center p-4 md:p-6">
-           {/* Title - Use accent gradient again? */}
+           {/* Title - Gradient is fine */} 
            <h1 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text">
               Your DegenType Result
            </h1>
@@ -415,22 +465,22 @@ export default function App() {
                  className="w-36 h-36 md:w-44 md:h-44 rounded-lg mx-auto mb-4 shadow-lg object-cover" 
                />
              )}
-             {/* Adjust text colors for contrast */}
-             <h2 className="text-3xl font-bold mb-1 text-teal-300"> {/* Brighter Accent */} 
+             {/* Reverted text colors for white background */}
+             <h2 className="text-3xl font-bold mb-1 text-teal-600"> {/* Darker Teal */} 
                {mbtiType}
              </h2>
-             <h3 className="text-2xl font-semibold mb-1 text-white">
+             <h3 className="text-2xl font-semibold mb-1 text-black"> {/* Black */} 
                {result.name}
              </h3>
-             <p className="text-base italic mb-2 text-gray-300"> {/* Lighter Gray */} 
+             <p className="text-base italic mb-2 text-gray-600"> {/* Darker Gray */} 
                {result.tagline}
              </p>
-             <p className="text-base leading-relaxed mb-4 text-gray-200 max-w-prose mx-auto"> {/* Lighter Gray */} 
+             <p className="text-base leading-relaxed mb-4 text-gray-700 max-w-prose mx-auto"> {/* Darker Gray */} 
                {result.description}
              </p>
-             {/* Dimensions Box - Keep semi-transparent dark bg */}
-             <div className="bg-slate-700/40 p-4 rounded-md mb-4 text-left max-w-md mx-auto">
-               <h4 className="text-lg font-semibold mb-4 text-purple-300 text-center">Your Dimensions:</h4> {/* Keep Purple Accent */} 
+             {/* Dimensions Box - Light gray background */} 
+             <div className="bg-gray-100 p-4 rounded-md mb-4 text-left max-w-md mx-auto">
+               <h4 className="text-lg font-semibold mb-4 text-purple-600 text-center">Your Dimensions:</h4> {/* Darker Purple */} 
                {dimensions.map(dim => {
                    const percent = percentages[dim.key] ?? 50;
                    const type1 = dim.type1;
@@ -444,30 +494,30 @@ export default function App() {
                    
                    return (
                      <div key={dim.key} className="mb-2 text-center"> 
-                       <p className="text-base text-white mb-1">{sentence || `${dominantType} Tendency`}</p> 
-                       <p className="text-xs text-gray-400"> {/* Muted detail text */} 
+                       <p className="text-base text-gray-800 mb-1">{sentence || `${dominantType} Tendency`}</p> {/* Dark text */} 
+                       <p className="text-xs text-gray-600"> {/* Darker detail text */} 
                          <span className="font-medium">{dim.name}</span> (
-                           {/* Use teal for highlight? */}
-                           {isType1Dominant ? <strong className="font-semibold text-teal-300">{type1}</strong> : type1}
+                           {/* Darker teal for highlight */} 
+                           {isType1Dominant ? <strong className="font-semibold text-teal-600">{type1}</strong> : type1}
                            {' vs '}
-                           {!isType1Dominant ? <strong className="font-semibold text-teal-300">{type2}</strong> : type2}
+                           {!isType1Dominant ? <strong className="font-semibold text-teal-600">{type2}</strong> : type2}
                          ) - <span className='font-semibold'>{dominantPercent}%</span>
                        </p>
                      </div>
                    );
                })} 
              </div>
-             {/* Note - Standard yellow might be fine */}
+             {/* Note - Darker yellow */}
              {questions.length > 0 && !allQuestionsAnswered && (
-               <p className="text-xs text-yellow-400 mt-4">
+               <p className="text-xs text-yellow-600 mt-4"> {/* Darker Yellow */} 
                  Note: Results based on {answers.filter(a => a !== undefined).length} of {questions.length} questions. Retake for full accuracy.
                </p>
              )}
            </div>
-           {/* Update button styles for darker theme */}
+           {/* Reverted Retake button style */} 
            <div className="button-group mt-6 flex flex-col sm:flex-row justify-center gap-4">
              <button onClick={handleShare} className="share-button bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200 shadow-md">Share on X</button>
-             <button onClick={handleRetakeQuiz} className="retake-button bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200 shadow-md">Take Test Again</button>
+             <button onClick={handleRetakeQuiz} className="retake-button bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors duration-200 shadow-md">Take Test Again</button>
            </div>
         </div>
       </div>
@@ -477,21 +527,22 @@ export default function App() {
   // Question Screen
   if (showQuiz && questions.length > 0) {
      return (
-       // Darker background
-       <div className="container relative mx-auto px-4 py-8 min-h-screen flex flex-col items-center text-white bg-gradient-to-b from-slate-800 to-slate-900 quiz-container">
-         {/* Update Back button color */}
+       // Changed background to white, default text to dark gray
+       <div className="container relative mx-auto px-4 py-8 min-h-screen flex flex-col items-center text-gray-800 bg-white quiz-container">
+         {/* Updated Back button color */} 
          <button 
            onClick={handleRetakeQuiz} 
-           className="absolute top-4 left-4 text-sm text-gray-400 hover:text-gray-200 transition-colors duration-200 z-10 bg-transparent border-none p-2"
+           className="absolute top-4 left-4 text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200 z-10 bg-transparent border-none p-2"
            aria-label="Back to Home"
          >
            ← Back to Home
          </button>
 
-         {/* Title - Apply consistent homepage style */}
+         {/* Title - Gradient should be fine */} 
          <h1 className="text-3xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text leading-relaxed pb-2">
             DegenType
          </h1>
+         {/* Updated Progress Bar Track */} 
          <ProgressBar current={answeredCount} total={questions.length} /> 
          <div className="w-full max-w-3xl px-4 py-6 question-card"> 
            {questionsOnCurrentPage.map((question, localIndex) => {
@@ -513,42 +564,47 @@ export default function App() {
              
              return (
                <div key={globalIndex} id={`question-${globalIndex}`} className={containerClasses}>
-                 {/* Question text white unless faded */}
-                 <h2 className={`question-text text-lg md:text-xl font-medium mb-4 text-center ${!allowInteraction && !isActive ? 'text-gray-500 opacity-70' : 'text-white'}`}>{globalIndex + 1}. {question.text}</h2>
+                 {/* Updated Question text color */} 
+                 <h2 className={`question-text text-lg md:text-xl font-medium mb-4 text-center ${!allowInteraction && !isActive ? 'text-gray-400 opacity-70' : 'text-gray-900'}`}>{globalIndex + 1}. {question.text}</h2>
                  <div className="likert-scale flex items-center justify-center gap-3 md:gap-4 my-4">
-                   {/* Keep green/purple agree/disagree active, gray muted */}
-                   <span className={`text-base font-medium ${allowInteraction ? 'text-green-400' : 'text-gray-500'}`}>Agree</span>
+                   {/* Updated Agree/Disagree text colors */} 
+                   <span className={`text-base font-medium ${allowInteraction ? 'text-green-600' : 'text-gray-400'}`}>Agree</span>
                    {likertOptions.map(option => {
                      const isSelected = answers[globalIndex] === option.value;
                      let size = 'w-6 h-6 md:w-7 md:h-7';
-                     let baseBgColor = allowInteraction ? 'bg-slate-700/70' : 'bg-slate-800/50'; 
-                     let hoverBgColor = allowInteraction ? 'hover:bg-slate-600' : '';
-                     let baseBorderColor = allowInteraction ? 'border-gray-500' : 'border-gray-700';
+                     // --- Updated Likert Button Colors for White BG --- 
+                     let baseBgColor = allowInteraction ? 'bg-gray-100' : 'bg-gray-50'; 
+                     let hoverBgColor = allowInteraction ? 'hover:bg-gray-200' : '';
+                     let baseBorderColor = allowInteraction ? 'border-gray-300' : 'border-gray-200';
                      let selectedBgColor = 'bg-purple-500'; 
                      let selectedBorderColor = 'border-purple-500';
+                     let textColor = 'text-white'; // Default for selected
 
                      if (option.value === 0) {
                        size = 'w-5 h-5 md:w-6 md:h-6';
                        selectedBgColor = 'bg-gray-400'; 
                        selectedBorderColor = 'border-gray-400';
-                       if (allowInteraction) hoverBgColor = 'hover:bg-gray-400';
+                       if (allowInteraction) hoverBgColor = 'hover:bg-gray-300'; 
                      } else if (option.value > 0) {
                        selectedBgColor = 'bg-green-500'; 
                        selectedBorderColor = 'border-green-500';
                        if(allowInteraction) {
-                          baseBorderColor = 'border-green-500';
-                          hoverBgColor = 'hover:bg-green-700';
+                          baseBorderColor = 'border-green-400'; // Lighter border for base
+                          hoverBgColor = 'hover:bg-green-100'; // Light hover
+                          baseBgColor = 'bg-green-50'; // Light base bg
                        }
                        if (option.value === 2) size = 'w-8 h-8 md:w-9 md:h-9';
-                     } else {
+                     } else { // value < 0
                        selectedBgColor = 'bg-purple-500';
                        selectedBorderColor = 'border-purple-500';
                        if(allowInteraction) {
-                         baseBorderColor = 'border-purple-500';
-                         hoverBgColor = 'hover:bg-purple-700';
+                         baseBorderColor = 'border-purple-400'; // Lighter border for base
+                         hoverBgColor = 'hover:bg-purple-100'; // Light hover
+                         baseBgColor = 'bg-purple-50'; // Light base bg
                        }
                        if (option.value === -2) size = 'w-8 h-8 md:w-9 md:h-9';
                      }
+                     // --- End Updated Colors --- 
                      
                      return (
                        <button
@@ -560,29 +616,32 @@ export default function App() {
                            ${isSelected ? selectedBorderColor : baseBorderColor} 
                            ${isSelected ? selectedBgColor : baseBgColor} 
                            ${!isSelected && allowInteraction ? hoverBgColor : ''} 
-                           ${isSelected ? 'ring-2 ring-offset-2 ring-offset-slate-800 ring-white' : ''} /* Adjusted ring offset color */
+                           ${isSelected ? 'ring-2 ring-offset-2 ring-offset-white ring-indigo-500' : ''} /* Adjusted ring offset color */ 
                            ${!allowInteraction ? 'cursor-not-allowed' : 'cursor-pointer'} 
                          `}
                          onClick={() => handleAnswer(globalIndex, option.value)}
                        >
                          {isSelected && (
-                           <svg className="w-4 h-4 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" stroke="currentColor">
+                           <svg className={`w-4 h-4 ${textColor}`} fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" stroke="currentColor">
                              <path d="M5 13l4 4L19 7"></path>
                            </svg>
                          )}
                        </button>
                      );
                    })}
-                   {/* Keep green/purple agree/disagree active, gray muted */}
-                   <span className={`text-base font-medium ${allowInteraction ? 'text-purple-400' : 'text-gray-500'}`}>Disagree</span>
+                   {/* Updated Agree/Disagree text colors */} 
+                   <span className={`text-base font-medium ${allowInteraction ? 'text-purple-600' : 'text-gray-400'}`}>Disagree</span>
                  </div>
                </div>
              );
            })}
-           {/* Update Nav button styles */} 
+           {/* Updated Nav button styles */} 
            <div className="navigation-buttons flex justify-between items-center mt-6">
-             <button onClick={handleBack} disabled={currentPageIndex === 0} className="nav-button px-5 py-2 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200">Back</button>
-             <p className="question-number text-sm text-gray-300">Page {currentPageIndex + 1} of {totalPages}</p>
+             {/* Updated Back button style */} 
+             <button onClick={handleBack} disabled={currentPageIndex === 0} className="nav-button px-5 py-2 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200">Back</button>
+             {/* Updated Page indicator text */} 
+             <p className="question-number text-sm text-gray-600">Page {currentPageIndex + 1} of {totalPages}</p>
+             {/* Kept Next button style */} 
              <button 
                onClick={handleNext} 
                disabled={!areAllQuestionsOnPageAnswered()}
@@ -597,5 +656,5 @@ export default function App() {
   }
 
   // Fallback
-  return <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-800 to-slate-900 text-white">Loading...</div>; 
+  return <div className="min-h-screen flex items-center justify-center bg-white text-gray-600">Loading...</div>; // Updated fallback
 }
