@@ -3,60 +3,50 @@ import { questions, typeDescriptions } from './data';
 export function calculateMBTI(answers) {
   // Initialize scores for each dimension
   const scores = {
-    DB: 0, // D vs B (Degen vs Builder)
-    TV: 0, // T vs V (Trader vs Visionary)
-    HE: 0, // H vs E (HODLer vs Exit Liquidity)
-    OM: 0  // O vs M (Omni-Chain vs Maxi)
+    AB: 0, // Risk: A (Ape) vs B (Builder)
+    DP: 0, // Holding: D (Diamond) vs P (Paper)
+    MO: 0, // Chain: M (Maxi) vs O (Omni)
+    TN: 0  // Asset: T (Token) vs N (NFT)
   };
 
   // Calculate scores based on Likert scale values (-2 to +2)
   answers.forEach((answer, index) => {
-    if (answer === undefined) return; // Skip unanswered questions
+    if (answer === undefined || index >= questions.length) return; // Skip unanswered or out-of-bounds questions
     
     const question = questions[index];
-    const dimension = question.type; // e.g., "DB", "TV", etc.
-    const isPositive = question.positiveType === dimension[0]; // e.g., "D" in "DB"
+    if (!question) return; // Skip if question is somehow undefined
     
-    scores[dimension] += isPositive ? answer : -answer;
+    const dimension = question.type; // e.g., "AB", "DP", "MO", "TN"
+    // Determine which type is considered "positive" for scoring
+    // E.g., for AB axis, A is positive, B is negative
+    const positiveTypeValue = dimension[0]; // A, D, M, T
+
+    // If the question's positiveType matches the first letter of the dimension,
+    // add the answer directly. Otherwise, invert the answer.
+    const scoreChange = question.positiveType === positiveTypeValue ? answer : -answer;
+    
+    // Check if the dimension exists in scores before updating
+    if (scores.hasOwnProperty(dimension)) {
+      scores[dimension] += scoreChange;
+    } else {
+      console.warn(`Dimension "${dimension}" not found in scores object for question index ${index}`);
+    }
   });
 
-  // First letter: D or B
-  const firstLetter = scores.DB >= 0 ? 'D' : 'B';
-  
-  // Second letter: T or V or H
-  let secondLetter;
-  if (firstLetter === 'D') {
-    // Degens can be Traders (T) or Visionaries (V)
-    secondLetter = scores.TV >= 0 ? 'T' : 'V';
-  } else {
-    // Builders can be HODLers (H), Traders (T), or Visionaries (V)
-    if (Math.abs(scores.HE) > Math.abs(scores.TV)) {
-      secondLetter = scores.HE >= 0 ? 'H' : 'T';
-    } else {
-      secondLetter = scores.TV >= 0 ? 'T' : 'V';
-    }
-  }
-  
-  // Third letter: H or E
-  let thirdLetter;
-  if (firstLetter === 'D') {
-    // Degens use HE score directly
-    thirdLetter = scores.HE >= 0 ? 'H' : 'E';
-  } else {
-    // Builders use HE score for HE
-    thirdLetter = scores.HE >= 0 ? 'H' : 'E';
-  }
-  
-  // Fourth letter: M or O
-  const fourthLetter = scores.OM >= 0 ? 'M' : 'O';
+  // Determine the type based on scores
+  const firstLetter = scores.AB >= 0 ? 'A' : 'B';  // Risk: Ape vs Builder
+  const secondLetter = scores.DP >= 0 ? 'D' : 'P'; // Holding: Diamond vs Paper
+  const thirdLetter = scores.MO >= 0 ? 'M' : 'O';  // Chain: Maxi vs Omni
+  const fourthLetter = scores.TN >= 0 ? 'T' : 'N'; // Asset: Token vs NFT
 
   const type = firstLetter + secondLetter + thirdLetter + fourthLetter;
 
-  // Verify the type exists in our descriptions
-  if (!typeDescriptions[type]) {
-    console.error('Invalid type calculated:', type);
-    return null;
-  }
+  // Since typeDescriptions is empty now, we don't need to validate against it.
+  // We will add the descriptions later.
+  // if (!typeDescriptions[type]) {
+  //   console.error('Invalid type calculated or description missing:', type);
+  //   return null; // Or handle as needed
+  // }
 
   return type;
 } 
