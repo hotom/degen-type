@@ -49,22 +49,22 @@ export const questions = [
 ];
 
 export const typeDescriptions = {
-  ADMT: { name: "The Chain Crusader", tagline: "All in, never out.", description: "You ape fast, never sell, ride one chain to the end, and farm tokens like there's no tomorrow." },
-  ADMN: { name: "The JPEG Berserker", tagline: "Buy now, list later.", description: "You ape into NFTs on one chain and diamond hand them through the apocalypse." },
-  ADOT: { name: "The Multi-Farm Degen", tagline: "Airdrops are my love language.", description: "Omni-chain, high-risk token hunter who rotates farms like fashion trends." },
-  ADON: { name: "The NFT Nomad", tagline: "Mint now, explain later.", description: "You live across chains, hoard JPEGs, and refuse to let go. Culture over liquidity." },
-  APMT: { name: "The Exit Scammer", tagline: "Bought the top. Selling the bottom.", description: "Apes hard, paper hands every dip, loyal to one chain, and addicted to token flips." },
-  APMN: { name: "The Chain-Cope Collector", tagline: "Still holding the NFT... emotionally.", description: "Lives on one chain, flips NFTs, but sells too early and regrets it forever." },
-  APOT: { name: "The Rug Tourist", tagline: "Bridge. Buy. Bail.", description: "Omni-chain explorer who buys hype tokens, sells fast, and survives off copium." },
-  APON: { name: "The JPEG Flipper", tagline: "List. Delist. Regret.", description: "Mint everything, list everything, never sure why you bought it in the first place." },
-  BDMT: { name: "The Maximalist Strategist", tagline: "Slow, steady, and always staked.", description: "Deep research, strong conviction, loyal to one chain, farming responsibly since day one." },
-  BDMN: { name: "The NFT Philosopher", tagline: "This PFP is my thesis.", description: "Buys only what makes sense long-term. On one chain. Vibes over volume." },
-  BDOT: { name: "The Multi-Chain Yieldnerd", tagline: "DYOR across 12 chains.", description: "Thoughtful ape, omni-chain optimizer, always looking for yield… but sustainably." },
-  BDON: { name: "The NFT Historian", tagline: "This JPEG will be in museums.", description: "Cross-chain collector with long-term taste. You'll never sell, and that's the point." },
-  BPMT: { name: "The Conservative Trader", tagline: "I'll bridge later.", description: "Low risk, fast to sell, only trust one chain, and barely touch NFTs." },
-  BPMN: { name: "The Defensive Collector", tagline: "I'm in for the vibes... unless it dips.", description: "Picks a chain, loves a project, but paper hands when the floor shakes." },
-  BPOT: { name: "The Yield Cautious", tagline: "Quick profit. Quick exit.", description: "Diversified, low-conviction, quick to bridge and quicker to swap." },
-  BPON: { name: "The NFT Tourist", tagline: "It looked cute, okay?", description: "Scans every chain for art, flips emotionally, and always blames the floor gods." }
+  ADMT: { name: "The Chain Crusader", tagline: "All in, never out.", description: "You ape fast, never sell, ride one chain to the end, and farm tokens like there's no tomorrow.", imageUrl: "/degen_avatar.png" },
+  ADMN: { name: "The JPEG Berserker", tagline: "Buy now, list later.", description: "You ape into NFTs on one chain and diamond hand them through the apocalypse.", imageUrl: "/degen_avatar.png" },
+  ADOT: { name: "The Multi-Farm Degen", tagline: "Airdrops are my love language.", description: "Omni-chain, high-risk token hunter who rotates farms like fashion trends.", imageUrl: "/degen_avatar.png" },
+  ADON: { name: "The NFT Nomad", tagline: "Mint now, explain later.", description: "You live across chains, hoard JPEGs, and refuse to let go. Culture over liquidity.", imageUrl: "/degen_avatar.png" },
+  APMT: { name: "The Exit Scammer", tagline: "Bought the top. Selling the bottom.", description: "Apes hard, paper hands every dip, loyal to one chain, and addicted to token flips.", imageUrl: "/degen_avatar.png" },
+  APMN: { name: "The Chain-Cope Collector", tagline: "Still holding the NFT... emotionally.", description: "Lives on one chain, flips NFTs, but sells too early and regrets it forever.", imageUrl: "/degen_avatar.png" },
+  APOT: { name: "The Rug Tourist", tagline: "Bridge. Buy. Bail.", description: "Omni-chain explorer who buys hype tokens, sells fast, and survives off copium.", imageUrl: "/degen_avatar.png" },
+  APON: { name: "The JPEG Flipper", tagline: "List. Delist. Regret.", description: "Mint everything, list everything, never sure why you bought it in the first place.", imageUrl: "/degen_avatar.png" },
+  BDMT: { name: "The Maximalist Strategist", tagline: "Slow, steady, and always staked.", description: "Deep research, strong conviction, loyal to one chain, farming responsibly since day one.", imageUrl: "/degen_avatar.png" },
+  BDMN: { name: "The NFT Philosopher", tagline: "This PFP is my thesis.", description: "Buys only what makes sense long-term. On one chain. Vibes over volume.", imageUrl: "/degen_avatar.png" },
+  BDOT: { name: "The Multi-Chain Yieldnerd", tagline: "DYOR across 12 chains.", description: "Thoughtful ape, omni-chain optimizer, always looking for yield… but sustainably.", imageUrl: "/degen_avatar.png" },
+  BDON: { name: "The NFT Historian", tagline: "This JPEG will be in museums.", description: "Cross-chain collector with long-term taste. You'll never sell, and that's the point.", imageUrl: "/degen_avatar.png" },
+  BPMT: { name: "The Conservative Trader", tagline: "I'll bridge later.", description: "Low risk, fast to sell, only trust one chain, and barely touch NFTs.", imageUrl: "/degen_avatar.png" },
+  BPMN: { name: "The Defensive Collector", tagline: "I'm in for the vibes... unless it dips.", description: "Picks a chain, loves a project, but paper hands when the floor shakes.", imageUrl: "/degen_avatar.png" },
+  BPOT: { name: "The Yield Cautious", tagline: "Quick profit. Quick exit.", description: "Diversified, low-conviction, quick to bridge and quicker to swap.", imageUrl: "/degen_avatar.png" },
+  BPON: { name: "The NFT Tourist", tagline: "It looked cute, okay?", description: "Scans every chain for art, flips emotionally, and always blames the floor gods.", imageUrl: "/degen_avatar.png" }
 };
 
 export const likertOptions = [

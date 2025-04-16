@@ -77,20 +77,17 @@ const dimensionSentences = {
 
 export default function App() {
   const [testType, setTestType] = useState(null); // 'lite', 'standard', or null
-  const [questions, setQuestions] = useState([]); // Initialize empty
+  const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [currentPageIndex, setCurrentPageIndex] = useState(0); // New state
+  const [questionsPerPage, setQuestionsPerPage] = useState(0); // New state
   const [showResults, setShowResults] = useState(false);
   const [mbtiType, setMbtiType] = useState(null);
   const [showQuiz, setShowQuiz] = useState(false);
-  const [showAllTypes, setShowAllTypes] = useState(false);
-  const [allQuestionsAnswered, setAllQuestionsAnswered] = useState(false);
+  const [allQuestionsAnswered, setAllQuestionsAnswered] = useState(false); // Will be set when results are shown
 
-  // State for new axis scores and percentages
-  const [dimensionScores, setDimensionScores] = useState({});
   const [percentages, setPercentages] = useState({});
 
-  // NEW: Define the axes for the new framework
   const dimensions = [
     { key: 'AB', name: 'Risk', type1: 'Ape', type2: 'Builder', emoji: '🦍/👷' },
     { key: 'DP', name: 'Holding', type1: 'Diamond', type2: 'Paper', emoji: '💎/📄' },
@@ -98,22 +95,62 @@ export default function App() {
     { key: 'TN', name: 'Asset', type1: 'Token', type2: 'NFT', emoji: '🪙/🖼️' },
   ];
 
-  // Function to start a specific test type
+  // --- Calculate derived state early --- 
+  const answeredCount = answers.filter(a => a !== undefined).length;
+  const totalPages = Math.ceil(questions.length / questionsPerPage);
+  const startIndex = currentPageIndex * questionsPerPage;
+  const endIndex = Math.min(startIndex + questionsPerPage, questions.length);
+  const questionsOnCurrentPage = questions.slice(startIndex, endIndex);
+
+  // Find the global index of the first unanswered question
+  const activeQuestionGlobalIndex = answers.findIndex(a => a === undefined);
+  // If all answered, set to length to avoid issues, or -1 if no questions yet
+  const firstUnansweredIndex = activeQuestionGlobalIndex === -1 && questions.length > 0 ? questions.length : activeQuestionGlobalIndex;
+
+  // --- Effects --- 
+  useEffect(() => {
+    // Handle initial URL loading (simplified)
+    const urlParams = new URLSearchParams(window.location.search);
+    const resultsParam = urlParams.get('results');
+    if (resultsParam && initialQuestions.length > 0) { 
+      setMbtiType(resultsParam);
+      setShowResults(true);
+      setShowQuiz(false); 
+    }
+  }, []); // Run only once on mount
+
+  // Effect to scroll to the TOP of the page when the page index changes
+  useEffect(() => {
+    if (showQuiz && questions.length > 0 && questionsPerPage > 0) {
+      const elementId = `question-${startIndex}`;
+      const element = document.getElementById(elementId);
+      if (element) {
+        // Use setTimeout to ensure DOM is updated after state changes
+        setTimeout(() => {
+           // Scroll the *first* question of the page into view
+           element.scrollIntoView({ behavior: 'smooth', block: 'start' }); 
+        }, 50); // Short delay
+      }
+    }
+    // Run only when page changes or quiz starts
+  }, [currentPageIndex, showQuiz, questionsPerPage]); 
+
+  // --- Handlers ---
   const startTest = (type) => {
     const selectedQuestions = getTestQuestions(type);
+    const qpp = 4; // Set questions per page to 4 for both modes
     setTestType(type);
     setQuestions(selectedQuestions);
     setAnswers(Array(selectedQuestions.length).fill(undefined));
-    setCurrentQuestionIndex(0);
+    setCurrentPageIndex(0);
+    setQuestionsPerPage(qpp);
     setShowQuiz(true);
     setShowResults(false);
     setMbtiType(null);
     setPercentages({});
-    setDimensionScores({});
-    // Maybe update URL here if desired, e.g., `?test=${type}`
+    window.history.pushState(null, '', `?test=${type}&page=1`); // Optional URL update
   };
 
-  // Function to calculate scores and percentages (needs to be adapted)
   const calculateScores = () => {
     const scores = {
       AB: 0, DP: 0, MO: 0, TN: 0
@@ -148,58 +185,69 @@ export default function App() {
       calculatedPercentages[dim.key] = Math.round(normalizedScore * 100);
     });
 
-    setDimensionScores(scores); // Store raw scores if needed
     setPercentages(calculatedPercentages); // Store percentages
-    return { dimensionScores: scores, percentages: calculatedPercentages }; // Return both
+    return { percentages: calculatedPercentages }; // Return only percentages as scores are not used directly
   };
 
-  useEffect(() => {
-    // Handle initial URL params
-    const urlParams = new URLSearchParams(window.location.search);
-    const resultsParam = urlParams.get('results');
-    // Maybe add logic here if you want to directly link to results
-    if (resultsParam && initialQuestions.length > 0) { // Ensure questions are available
-      setMbtiType(resultsParam);
-      // Need to determine which test was taken or assume standard for score calc?
-      // For simplicity, let's assume standard if directly linking to results
-      // OR maybe don't calculate scores/percentages on direct result link?
-      // Let's just show the type and description for now if linking directly.
-      setShowResults(true);
-      setShowQuiz(false); 
-    }
-  }, []); // Run only once on mount
-
-  const handleAnswer = (value) => {
+  const handleAnswer = (globalIndex, value) => {
     const newAnswers = [...answers];
-    if (currentQuestionIndex >= 0 && currentQuestionIndex < questions.length) {
-      newAnswers[currentQuestionIndex] = value;
+    if (globalIndex >= 0 && globalIndex < questions.length) {
+      newAnswers[globalIndex] = value;
       setAnswers(newAnswers);
       
-      if (currentQuestionIndex === questions.length - 1) {
-        // Last question answered
-        setTimeout(() => handleViewResults(true), 100);
-      } else {
-        // Move to next question
-        setTimeout(() => handleNext(), 300);
+      // --- Scroll to next question IF it's on the same page --- 
+      const nextGlobalIndex = globalIndex + 1;
+      // Check if the next question index is within the current page bounds (less than endIndex)
+      if (nextGlobalIndex < endIndex) { 
+        const nextQuestionElement = document.getElementById(`question-${nextGlobalIndex}`);
+        if (nextQuestionElement) {
+          // Use setTimeout to allow state update before scrolling
+          setTimeout(() => {
+            nextQuestionElement.scrollIntoView({ behavior: 'smooth', block: 'start' }); 
+          }, 100); 
+        }
       }
+      // If it's the last question on the page, do nothing - user clicks Next/View Results.
+      // --- End scroll logic ---
+
     } else {
-      console.error("Invalid currentQuestionIndex:", currentQuestionIndex);
+      console.error("Invalid globalIndex in handleAnswer:", globalIndex);
     }
+  };
+
+  const areAllQuestionsOnPageAnswered = () => {
+    if (questions.length === 0) return false;
+    for (let i = startIndex; i < endIndex; i++) {
+      if (answers[i] === undefined) {
+        return false;
+      }
+    }
+    return true;
   };
 
   const handleNext = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    if (areAllQuestionsOnPageAnswered()) {
+      if (currentPageIndex < totalPages - 1) {
+        setCurrentPageIndex(currentPageIndex + 1);
+        window.history.pushState(null, '', `?test=${testType}&page=${currentPageIndex + 2}`); // Optional URL update
+      } else {
+        // This is the last page, trigger results view
+        handleViewResults(true);
+      }
+    } else {
+      // Optionally alert the user to answer all questions
+      alert('Please answer all questions on this page before proceeding.');
     }
   };
 
   const handleBack = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    if (currentPageIndex > 0) {
+      setCurrentPageIndex(currentPageIndex - 1);
+      window.history.pushState(null, '', `?test=${testType}&page=${currentPageIndex}`); // Optional URL update
     }
   };
 
-  const handleViewResults = (force = true) => { // Default force to true now
+  const handleViewResults = (force = true) => {
     const resultType = calculateMBTI(answers);
     const { percentages: calculatedPercentages } = calculateScores(); // Use the active questions
 
@@ -207,7 +255,7 @@ export default function App() {
       setMbtiType(resultType);
       setPercentages(calculatedPercentages);
       setShowResults(true);
-      setShowQuiz(false); // Hide quiz screen
+      setShowQuiz(false);
       setAllQuestionsAnswered(true); // Mark as answered
       window.history.pushState(null, '', `?results=${resultType}`);
     } else {
@@ -216,16 +264,15 @@ export default function App() {
   };
 
   const handleRetakeQuiz = () => {
-    setTestType(null); // Go back to test selection
+    setTestType(null); 
     setQuestions([]);
     setAnswers([]);
-    setCurrentQuestionIndex(0);
+    setCurrentPageIndex(0);
+    setQuestionsPerPage(0);
     setShowResults(false);
     setMbtiType(null);
-    setShowQuiz(false); // Show home screen
-    setShowAllTypes(false);
+    setShowQuiz(false); 
     setPercentages({});
-    setDimensionScores({});
     window.history.pushState(null, '', window.location.pathname);
   };
 
@@ -248,192 +295,6 @@ export default function App() {
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
     window.open(twitterUrl, '_blank');
   };
-
-  // Extract repeated styles into constants
-  const cardStyle = {
-    background: 'rgba(255, 255, 255, 0.03)',
-    padding: '0.75rem',
-    borderRadius: '0.5rem',
-    marginBottom: '0.5rem'
-  };
-
-  const typeCodeStyle = {
-    color: 'var(--accent)',
-    marginBottom: '0.25rem',
-    fontSize: '0.875rem'
-  };
-
-  const descriptionStyle = {
-    color: 'var(--text-secondary)',
-    marginBottom: '0.25rem',
-    fontSize: '0.875rem'
-  };
-
-  const taglineStyle = {
-    color: 'var(--accent)',
-    fontStyle: 'italic',
-    fontSize: '0.875rem'
-  };
-
-  const dimensionStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '0.5rem',
-    fontSize: '1rem',
-    fontWeight: '500'
-  };
-
-  const progressBarStyle = {
-    width: '100%',
-    height: '8px',
-    backgroundColor: '#374151',
-    borderRadius: '4px',
-    position: 'relative',
-    overflow: 'hidden'
-  };
-
-  const progressFillStyle = {
-    position: 'absolute',
-    height: '100%',
-    backgroundColor: '#3b82f6',
-    borderRadius: '4px',
-    transition: 'width 0.3s ease'
-  };
-
-  // Extract repeated JSX into components
-  const TypeCard = ({ code, type }) => (
-    <div style={cardStyle}>
-      <h3 style={{ fontSize: '0.67rem', marginBottom: '0.25rem' }}>{type.name}</h3>
-      <p style={typeCodeStyle}>{code}</p>
-      <p style={{ ...descriptionStyle, fontSize: '0.5rem' }}>
-        {code[0] === 'D' ? 'Degen' : 'Builder'} • 
-        {code[1] === 'T' ? 'Trader' : 'Visionary'} • 
-        {code[2] === 'H' ? 'HODLer' : 'Exit Liquidity'} • 
-        {code[3] === 'M' ? 'Maxi' : 'Omni-Chain'}
-      </p>
-      <p style={descriptionStyle}>{type.description}</p>
-      <p style={taglineStyle}>"{type.tagline}"</p>
-    </div>
-  );
-
-  // Personality Types Screen
-  if (showAllTypes) {
-    return (
-      <div style={{ minHeight: '100vh', padding: '0.3rem 1rem' }}>
-        <div className="card">
-          <div style={{ textAlign: 'center' }}>
-            <button 
-              onClick={() => setShowAllTypes(false)}
-              style={{
-                position: 'absolute',
-                top: '1rem',
-                left: '1rem',
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-                fontSize: '0.875rem'
-              }}
-            >
-              ← Back to Home
-            </button>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-              Degen Dimensions
-            </h1>
-            
-            <div style={{ textAlign: 'left', marginTop: '1rem' }}>
-              <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--accent)' }}>
-                4 Dichotomies
-              </h2>
-              <div style={{ marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>Degen vs. Builder (D vs. B)</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  Degen: Quick to ape into new projects, loves the thrill of discovery
-                  <br/>
-                  Builder: Takes time to research, focuses on fundamentals
-                </p>
-              </div>
-              <div style={{ marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>Trader vs. Visionary (T vs. V)</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  Trader: Focuses on charts, patterns, and short-term opportunities
-                  <br/>
-                  Visionary: Believes in long-term potential and narratives
-                </p>
-              </div>
-              <div style={{ marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>HODLer vs. Exit Liquidity (H vs. E)</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  HODLer: Diamond hands. Buys and forgets. Probably still holding DOGE from 2017.
-                  <br/>
-                  Exit Liquidity: Always chasing the next pump — often left holding the bag (or worse, becoming the bag).
-                </p>
-              </div>
-              <div style={{ marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>Omni-Chain vs. Maxi (O vs. M)</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  Omni-Chain: Lives on bridges. Keeps gas on 8 chains. Probably farming on some random zk-L3 testnet.
-                  <br/>
-                  Maxi: One chain to rule them all. Loyal to ETH, Solana, or Base — no bridge, no betrayals.
-                </p>
-              </div>
-
-              <h2 style={{ fontSize: '0.84rem', marginBottom: '0.5rem', color: 'var(--accent)' }}>
-                Personality Types
-              </h2>
-              <div style={{ 
-                display: 'grid', 
-                gap: '0.75rem',
-                gridTemplateColumns: 'repeat(2, 1fr)'
-              }}>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <h3 style={{ fontSize: '0.75rem', color: 'var(--accent)', marginBottom: '0.5rem' }}>🔮 Degen Types</h3>
-                  {[
-                    'DTVM', 'DTEO', 'DTEM', 'DTEH', 
-                    'DTHO', 'DTHM', 'DTVO', 'DTVH',
-                    'DTOM', 'DTOH', 'DTEV'
-                  ].map(code => (
-                    <TypeCard key={code} code={code} type={typeDescriptions[code]} />
-                  ))}
-                </div>
-
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <h3 style={{ fontSize: '0.75rem', color: 'var(--accent)', marginBottom: '0.5rem' }}>🧱 Builder Types</h3>
-                  {[
-                    'BHVM', 'BHVO', 'BHEM', 'BHEO',
-                    'BVEO', 'BVEH', 'BVEM', 'BVHM',
-                    'BVHO'
-                  ].map(code => (
-                    <TypeCard key={code} code={code} type={typeDescriptions[code]} />
-                  ))}
-                </div>
-
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <h3 style={{ fontSize: '0.75rem', color: 'var(--accent)', marginBottom: '0.5rem' }}>💹 Trader Types</h3>
-                  {[
-                    'BTHE', 'BTVE', 'BTHM', 'BTEO',
-                    'BTVO', 'BTHO', 'BTEM'
-                  ].map(code => (
-                    <TypeCard key={code} code={code} type={typeDescriptions[code]} />
-                  ))}
-                </div>
-
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <h3 style={{ fontSize: '0.75rem', color: 'var(--accent)', marginBottom: '0.5rem' }}>🔨 Builder Visionaries</h3>
-                  {[
-                    'BTOM', 'BTVM', 'BTVH', 'BTOH'
-                  ].map(code => (
-                    <TypeCard key={code} code={code} type={typeDescriptions[code]} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Home Screen
   if (!showQuiz && !showResults) {
@@ -503,7 +364,16 @@ export default function App() {
            <h1 className="text-2xl md:text-3xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text" style={{ lineHeight: '1.2', paddingBottom: '0.25rem' }}>
               Your DegenType Result
            </h1>
-           <div className="result-card mb-6"> {/* Added margin bottom */}
+           <div className="result-card mb-6"> 
+             {/* Add Image Display */}
+             {result.imageUrl && (
+               <img 
+                 src={result.imageUrl} 
+                 alt={`${result.name} avatar`} 
+                 className="w-48 h-48 md:w-56 md:h-56 rounded-lg mx-auto mb-4 shadow-lg object-cover" 
+               />
+             )}
+
              {/* Type Code - Larger, bolder */}
              <h2 className="text-3xl font-bold mb-2 text-blue-400">
                {mbtiType}
@@ -569,37 +439,135 @@ export default function App() {
   }
 
   // Question Screen
-  const currentQuestion = questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+  if (showQuiz && questions.length > 0) {
+     // Note: We use questionsOnCurrentPage for rendering this page's questions
+     return (
+       // Add relative positioning to the container for absolute positioning of the button
+       <div className="container relative mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center text-white bg-gray-900 quiz-container">
+         {/* Add Back to Home Button */}
+         <button 
+           onClick={handleRetakeQuiz} 
+           className="absolute top-4 left-4 text-sm text-gray-400 hover:text-gray-200 transition-colors duration-200 z-10 bg-transparent border-none p-2"
+           aria-label="Back to Home"
+         >
+           ← Back to Home
+         </button>
 
-  return (
-    <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center text-white bg-gray-900 quiz-container">
-      <h1 className="text-3xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text" style={{ lineHeight: '1.2', paddingBottom: '0.25rem' }}>
-        DegenType
-      </h1>
-      <ProgressBar current={currentQuestionIndex + 1} total={questions.length} />
-      <div className="card bg-gray-800 p-6 md:p-8 rounded-lg shadow-xl w-full max-w-2xl question-card">
-        <p className="question-number text-sm text-gray-400 mb-2">Question {currentQuestionIndex + 1} of {questions.length}</p>
-        <h2 className="question-text text-lg md:text-xl font-medium mb-6 text-gray-100">{currentQuestion?.text || 'Loading question...'}</h2>
-        <div className="likert-scale flex flex-wrap justify-center gap-2 mb-6">
-          {likertOptions.map(option => (
-            <button
-              key={option.value}
-              className={`likert-btn ${answers[currentQuestionIndex] === option.value ? 'selected' : ''}`}
-              onClick={() => handleAnswer(option.value)}
-            >
-              <div className="likert-circle" /> 
-              <span className="text-sm">{option.label}</span> 
-            </button>
-          ))}
-        </div>
-        <div className="navigation-buttons flex justify-between mt-4">
-          <button onClick={handleBack} disabled={currentQuestionIndex === 0} className="nav-button px-4 py-2 rounded bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200">Back</button>
-          <button onClick={handleNext} disabled={answers[currentQuestionIndex] === undefined || currentQuestionIndex === questions.length - 1} className="nav-button px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200">
-            Next
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+         <h1 className="text-3xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text" style={{ lineHeight: '1.2', paddingBottom: '0.25rem' }}>
+            DegenType
+         </h1>
+         {/* Progress bar shows overall question progress */}
+         <ProgressBar current={answeredCount} total={questions.length} /> 
+         <div className="card bg-gray-800 p-6 md:p-8 rounded-lg shadow-xl w-full max-w-3xl question-card"> {/* Wider card */}
+           <p className="question-number text-sm text-gray-400 mb-4">Page {currentPageIndex + 1} of {totalPages}</p>
+           {/* Map over questions for the current page */}
+           {questionsOnCurrentPage.map((question, localIndex) => {
+             const globalIndex = startIndex + localIndex;
+             const isAnswered = answers[globalIndex] !== undefined;
+             const isActive = globalIndex === firstUnansweredIndex;
+             const isUpcoming = globalIndex > firstUnansweredIndex;
+             // NEW: Check if it's the immediately preceding answered question
+             const isPreviousAnswered = globalIndex === firstUnansweredIndex - 1;
+
+             // Determine container classes based on state
+             let containerClasses = "mb-6 pb-6 border-b border-gray-700 last:border-b-0 last:mb-0 last:pb-0 transition-opacity duration-300 ease-in-out";
+             if (isUpcoming) {
+               containerClasses += " opacity-50 pointer-events-none"; 
+             } else if (isAnswered && !isActive && !isPreviousAnswered) {
+               // Older answered questions (not the previous one) are faded and non-interactive
+               containerClasses += " opacity-60 pointer-events-none"; 
+             } else if (isPreviousAnswered) {
+                // Slightly fade the previous question, but keep it interactive
+                containerClasses += " opacity-80"; 
+             }
+             // Active question has full opacity and is interactive by default
+
+             // Determine if buttons should be interactive
+             const allowInteraction = isActive || isPreviousAnswered;
+             
+             return (
+               <div key={globalIndex} id={`question-${globalIndex}`} className={containerClasses}>
+                 <h2 className={`question-text text-md md:text-lg font-medium mb-4 text-gray-100 ${!allowInteraction && !isActive ? 'text-gray-500' : ''}`}>{globalIndex + 1}. {question.text}</h2>
+                 <div className="likert-scale flex items-center justify-center gap-3 md:gap-4 my-4">
+                   {/* Mute Agree/Disagree labels if interaction not allowed */}
+                   <span className={`text-sm font-medium ${allowInteraction ? 'text-green-400' : 'text-gray-500'}`}>Agree</span>
+                   {likertOptions.map(option => {
+                     const isSelected = answers[globalIndex] === option.value;
+                     // Define styles, considering allowInteraction
+                     let size = 'w-6 h-6 md:w-7 md:h-7';
+                     let baseBgColor = allowInteraction ? 'bg-gray-700' : 'bg-gray-800'; 
+                     let hoverBgColor = allowInteraction ? 'hover:bg-gray-500' : ''; 
+                     let baseBorderColor = allowInteraction ? 'border-gray-500' : 'border-gray-600';
+                     let selectedBgColor = 'bg-purple-500'; 
+                     let selectedBorderColor = 'border-purple-500';
+
+                     if (option.value === 0) { // Neutral
+                       size = 'w-5 h-5 md:w-6 md:h-6';
+                       selectedBgColor = 'bg-gray-400'; 
+                       selectedBorderColor = 'border-gray-400';
+                       if (allowInteraction) hoverBgColor = 'hover:bg-gray-400';
+                     } else if (option.value > 0) { // Agree side
+                       selectedBgColor = 'bg-green-500'; 
+                       selectedBorderColor = 'border-green-500';
+                       if(allowInteraction) {
+                          baseBorderColor = 'border-green-500';
+                          hoverBgColor = 'hover:bg-green-700';
+                       }
+                       if (option.value === 2) size = 'w-8 h-8 md:w-9 md:h-9';
+                     } else { // Disagree side
+                       selectedBgColor = 'bg-purple-500';
+                       selectedBorderColor = 'border-purple-500';
+                       if(allowInteraction) {
+                         baseBorderColor = 'border-purple-500';
+                         hoverBgColor = 'hover:bg-purple-700';
+                       }
+                       if (option.value === -2) size = 'w-8 h-8 md:w-9 md:h-9';
+                     }
+                     
+                     return (
+                       <button
+                         key={option.value}
+                         title={option.label}
+                         disabled={!allowInteraction} // Disable button if interaction not allowed
+                         className={`likert-circle-btn rounded-full border-2 transition-all duration-200 ease-in-out flex items-center justify-center 
+                           ${size} 
+                           ${isSelected ? selectedBorderColor : baseBorderColor} 
+                           ${isSelected ? selectedBgColor : baseBgColor} 
+                           ${!isSelected && allowInteraction ? hoverBgColor : ''} 
+                           ${isSelected ? 'ring-2 ring-offset-2 ring-offset-gray-800 ring-white' : ''}
+                           ${!allowInteraction ? 'cursor-not-allowed' : 'cursor-pointer'} 
+                         `}
+                         onClick={() => handleAnswer(globalIndex, option.value)}
+                       >
+                         {isSelected && (
+                           <svg className="w-4 h-4 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" stroke="currentColor">
+                             <path d="M5 13l4 4L19 7"></path>
+                           </svg>
+                         )}
+                       </button>
+                     );
+                   })}
+                   {/* Mute Agree/Disagree labels if interaction not allowed */}
+                   <span className={`text-sm font-medium ${allowInteraction ? 'text-purple-400' : 'text-gray-500'}`}>Disagree</span>
+                 </div>
+               </div>
+             );
+           })}
+           <div className="navigation-buttons flex justify-between mt-6">
+             <button onClick={handleBack} disabled={currentPageIndex === 0} className="nav-button px-4 py-2 rounded bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200">Back</button>
+             <button 
+               onClick={handleNext} 
+               disabled={!areAllQuestionsOnPageAnswered()} 
+               className="nav-button px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+             >
+               {currentPageIndex === totalPages - 1 ? 'View Results' : 'Next'}
+             </button>
+           </div>
+         </div>
+       </div>
+     );
+  }
+
+  // Fallback
+  return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">Loading...</div>; 
 }
