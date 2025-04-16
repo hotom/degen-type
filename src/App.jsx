@@ -27,23 +27,20 @@ const getTestQuestions = (type) => {
   return []; // Default empty
 };
 
-// Helper Components (Defined outside App)
+// Helper Components (Update Styles)
 const DimensionBar = ({ label, score }) => {
   const percentage = Math.max(0, Math.min(100, score || 0));
   return (
-    <div style={{ marginBottom: '1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-        <span style={{ fontSize: '0.875rem' }}>{label}</span>
+    <div className="mb-4"> 
+      <div className="flex justify-between mb-1">
+        <span className="text-sm text-gray-100 font-medium">{label}</span> {/* Light gray/white */} 
       </div>
-      <div style={{ background: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+      {/* Darker background for the bar track */}
+      <div className="bg-slate-700/50 rounded h-2 overflow-hidden">
         <div 
-          style={{
-            width: `${percentage}%`,
-            background: 'linear-gradient(to right, #8b5cf6, #3b82f6)',
-            height: '100%',
-            borderRadius: '4px 0 0 4px',
-            transition: 'width 0.3s ease'
-          }}
+          style={{ width: `${percentage}%` }} 
+          // Brighter gradient for contrast
+          className="bg-gradient-to-r from-teal-400 to-cyan-500 h-full rounded transition-all duration-300 ease-in-out"
         />
       </div>
     </div>
@@ -53,15 +50,12 @@ const DimensionBar = ({ label, score }) => {
 const ProgressBar = ({ current, total }) => {
   const progress = total > 0 ? (current / total) * 100 : 0;
   return (
-    <div style={{ width: '80%', margin: '1rem auto', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', height: '8px' }}>
+    // Darker track
+    <div className="w-4/5 mx-auto bg-slate-700/60 rounded-full h-2 my-4">
       <div 
-        style={{
-          width: `${progress}%`,
-          background: 'linear-gradient(to right, #8b5cf6, #3b82f6)',
-          height: '100%',
-          borderRadius: '4px',
-          transition: 'width 0.3s ease'
-        }}
+        style={{ width: `${progress}%` }}
+        // Brighter gradient
+        className="bg-gradient-to-r from-teal-400 to-cyan-500 h-full rounded-full transition-all duration-300 ease"
       />
     </div>
   );
@@ -134,6 +128,13 @@ export default function App() {
     }
     // Run only when page changes or quiz starts
   }, [currentPageIndex, showQuiz, questionsPerPage]); 
+
+  // Effect to scroll to top when results are shown
+  useEffect(() => {
+    if (showResults) {
+      window.scrollTo(0, 0);
+    }
+  }, [showResults]);
 
   // --- Handlers ---
   const startTest = (type) => {
@@ -277,21 +278,28 @@ export default function App() {
   };
 
   const handleShare = () => {
-    if (!mbtiType) return; // Ensure results are available
+    if (!mbtiType) return; 
     
-    // Fetch updated type descriptions when needed (will be added later)
     const result = typeDescriptions[mbtiType]; 
-    // For now, just use the type code
+    if (!result) {
+        console.error(`Description for type ${mbtiType} not found for sharing.`);
+        return; 
+    }
     
-    // Use calculated percentages
     const breakdown = dimensions.map(dim => {
-        const percent = percentages[dim.key] ?? 50; // Default to 50 if not calculated
+        const percent = percentages[dim.key] ?? 50;
         const type1 = dim.type1;
         const type2 = dim.type2;
-        return `${dim.emoji} ${dim.name}: ${percent}% ${type1} / ${100 - percent}% ${type2}`;
+        const isType1Dominant = percent >= 50;
+        const dominantType = isType1Dominant ? type1 : type2;
+        const dominantPercent = isType1Dominant ? percent : 100 - percent;
+        return `${dim.emoji} ${dominantType}: ${dominantPercent}%`;
     }).join('\n');
 
-    const shareText = `My DegenType is ${mbtiType}! 🚀\n\nMy Dimensions:\n${breakdown}\n\nFind yours: ${window.location.origin}`;
+    // Use window.location.href to get the full results URL
+    const resultUrl = window.location.href; 
+
+    const shareText = `My DegenType is ${result.name} (${mbtiType})! 🚀\n\n${breakdown}\n\nFind yours: ${resultUrl}\n\n@CheckmateFDN #CryptoMBTI #DegenType`;
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
     window.open(twitterUrl, '_blank');
   };
@@ -299,50 +307,84 @@ export default function App() {
   // Home Screen
   if (!showQuiz && !showResults) {
     return (
-      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center text-white bg-gray-900 home-container">
-        <div className="home-content w-full max-w-lg text-center">
-          <div className="home-text">
-            <h1 className="text-3xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text" style={{ lineHeight: '1.2', paddingBottom: '0.25rem' }}>
-              DegenType
-            </h1>
-            <p className="tagline text-lg text-gray-300 mb-4">
+      // Revert to standard dark background, image is now a separate element
+      <div 
+        className="container mx-auto px-4 pb-8 min-h-screen flex flex-col items-center justify-center text-white bg-gradient-to-b from-slate-800 to-slate-900 home-container"
+      >
+        {/* Content container - standard vertical flow */}
+        <div className="home-content w-full max-w-xl text-center flex-grow flex flex-col justify-center relative z-10 pt-6 pb-12">
+          {/* --- DegenType Title Moved OUTSIDE the image background container --- */}
+          <h1 className="text-3xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text leading-relaxed pb-2" > 
+            DegenType
+          </h1>
+
+          {/* home-text container now relative, with padding - holds tagline and uncover text */}
+          <div className="home-text mb-8 relative py-12 px-4 rounded-lg overflow-hidden shadow-lg"> 
+            {/* Image Div: absolute positioned INSIDE home-text, behind text */} 
+            <div 
+              className="absolute inset-0 opacity-40 z-0" /* Opacity 40% */
+              style={{
+                backgroundImage: 'url(/home_background.jpg)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center center',
+                backgroundRepeat: 'no-repeat'
+              }}
+            />
+            {/* Lighter gray text */} 
+            {/* Re-added text shadow for visibility */}
+            <p className="tagline text-xl text-gray-200 mb-6 relative z-10 [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.8)]"> 
               MBTI for Crypto Degens
             </p>
-            <p className="text-base text-gray-200 mb-6 max-w-md mx-auto">
+            {/* --- Re-added Text --- */}
+            {/* Re-added text shadow for visibility */}
+            <p className="text-base text-gray-300 mb-6 max-w-md mx-auto relative z-10 [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.8)]">
               Uncover your on-chain personality in just a few questions.
-              Are you a fearless Ape, a loyal Maxi, or a JPEG-loving Paper Hand?
             </p>
-            <div className="text-left max-w-md mx-auto mb-8 px-4">
-              <p className="text-base text-gray-200 mb-3">
-                You'll be scored across four key crypto instincts:
-              </p>
-              <ul className="list-none space-y-2 text-sm text-gray-300">
-                <li><span className="mr-2">🧠</span> <span className="font-semibold">Risk:</span> Ape vs. Builder</li>
-                <li><span className="mr-2">💎</span> <span className="font-semibold">Holding:</span> Diamond Hands vs. Paper Hands</li>
-                <li><span className="mr-2">🌐</span> <span className="font-semibold">Chain:</span> Maxi vs. Omni</li>
-                <li><span className="mr-2">🪙</span> <span className="font-semibold">Asset:</span> Token vs. NFT</li>
-              </ul>
-            </div>
-            <div className="flex flex-col gap-4 items-center mb-8">
-              <button
-                onClick={() => startTest('lite')}
-                className="bg-gradient-to-r from-purple-600 to-blue-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:opacity-90 transition-opacity w-64 shadow-lg"
-              >
-                Lite Test (~2 mins)
-              </button>
-              <button
-                onClick={() => startTest('standard')}
-                className="bg-gradient-to-r from-indigo-600 to-cyan-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:opacity-90 transition-opacity w-64 shadow-lg"
-              >
-                Standard (~5 mins)
-              </button>
-            </div>
-            <p className="text-sm text-gray-400 mb-3 max-w-md mx-auto">
-              Take the quiz. Meet your DegenType. Compare with friends.
+          </div>
+          {/* --- Degen Dimensions List - Now follows home-text --- */}
+          <div className="text-left max-w-md mx-auto px-4"> 
+            <p className="text-base text-gray-300 mb-3">
+              You'll be scored across four key crypto instincts:
             </p>
-            <p className="text-sm text-gray-300 max-w-md mx-auto">
-              And yes — your results may be used against you on Crypto Twitter.
-            </p>
+            <ul className="list-none space-y-2 text-sm text-gray-200">
+              <li><span className="mr-2 text-lg">🧠</span> <span className="font-semibold">Risk:</span> Ape vs. Builder</li>
+              <li><span className="mr-2 text-lg">💎</span> <span className="font-semibold">Holding:</span> Diamond Hands vs. Paper Hands</li>
+              <li><span className="mr-2 text-lg">🌐</span> <span className="font-semibold">Chain:</span> Maxi vs. Omni</li>
+              <li><span className="mr-2 text-lg">🪙</span> <span className="font-semibold">Asset:</span> Token vs. NFT</li>
+            </ul>
+          </div>
+          {/* --- End Re-added Text / Dimension list --- */}
+
+          {/* --- Buttons and Footer Section - Positioned normally AFTER the dimension list --- */}
+          <div className="mt-8 relative z-10"> 
+             <div className="flex flex-col gap-4 items-center mb-8">
+               <button
+                 onClick={() => startTest('lite')}
+                 className="bg-gradient-to-r from-purple-600 to-blue-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:opacity-90 transition-opacity w-64 shadow-lg"
+               >
+                 Lite Test (~2 mins)
+               </button>
+               <button
+                 onClick={() => startTest('standard')}
+                 className="bg-gradient-to-r from-indigo-600 to-cyan-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:opacity-90 transition-opacity w-64 shadow-lg"
+               >
+                 Standard (~5 mins)
+               </button>
+             </div>
+             <p className="text-sm text-gray-400 mb-8 text-center"> 
+               <a href="https://x.com/CheckmateFDN" target="_blank" rel="noopener noreferrer" className="text-teal-400 hover:text-teal-300 underline">
+                 Follow us on X
+               </a>
+             </p>
+
+             {/* Footer */} 
+             <footer className="w-full text-center text-xs text-gray-400">
+               <p className="mb-1">© 2025 Checkmate Foundation. All rights reserved</p>
+               <div className="flex justify-center gap-4">
+                 <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-200 underline">Terms & Conditions</a>
+                 <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-200 underline">Privacy Policy</a>
+               </div>
+             </footer>
           </div>
         </div>
       </div>
@@ -354,83 +396,77 @@ export default function App() {
     const result = typeDescriptions[mbtiType];
     if (!result) {
       console.error(`Description for type ${mbtiType} not found!`);
-      return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">Error: Result description not found. Please retake the quiz.</div>;
+      return <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-800 to-slate-900 text-white">Error: Result description not found. Please retake the quiz.</div>;
     }
 
     return (
-      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center text-white bg-gray-900 results-container">
-        <div className="card bg-gray-800 p-6 md:p-8 rounded-lg shadow-xl w-full max-w-2xl text-center">
-           {/* Title with gradient */}
-           <h1 className="text-2xl md:text-3xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text" style={{ lineHeight: '1.2', paddingBottom: '0.25rem' }}>
+      // Darker background
+      <div className="container mx-auto px-4 pb-8 min-h-screen flex flex-col items-center justify-center text-white bg-gradient-to-b from-slate-800 to-slate-900 results-container">
+        <div className="w-full max-w-2xl text-center p-4 md:p-6">
+           {/* Title - Use accent gradient again? */}
+           <h1 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text">
               Your DegenType Result
            </h1>
            <div className="result-card mb-6"> 
-             {/* Add Image Display */}
              {result.imageUrl && (
                <img 
                  src={result.imageUrl} 
                  alt={`${result.name} avatar`} 
-                 className="w-48 h-48 md:w-56 md:h-56 rounded-lg mx-auto mb-4 shadow-lg object-cover" 
+                 className="w-36 h-36 md:w-44 md:h-44 rounded-lg mx-auto mb-4 shadow-lg object-cover" 
                />
              )}
-
-             {/* Type Code - Larger, bolder */}
-             <h2 className="text-3xl font-bold mb-2 text-blue-400">
+             {/* Adjust text colors for contrast */}
+             <h2 className="text-3xl font-bold mb-1 text-teal-300"> {/* Brighter Accent */} 
                {mbtiType}
              </h2>
-             {/* Type Name - Slightly larger, bold */}
-             <h3 className="text-xl font-semibold mb-2 text-gray-100">
+             <h3 className="text-2xl font-semibold mb-1 text-white">
                {result.name}
              </h3>
-             {/* Tagline - Italic, gray */}
-             <p className="text-base italic mb-4 text-gray-400">
+             <p className="text-base italic mb-2 text-gray-300"> {/* Lighter Gray */} 
                {result.tagline}
              </p>
-             {/* Description - Smaller, lighter gray */}
-             <p className="text-sm leading-relaxed mb-6 text-gray-300 max-w-prose mx-auto"> {/* Centered max-width */}
+             <p className="text-base leading-relaxed mb-4 text-gray-200 max-w-prose mx-auto"> {/* Lighter Gray */} 
                {result.description}
              </p>
-             {/* Dimensions Box - Styled background, padding, rounded */} 
-             <div className="bg-gray-700/50 p-4 rounded-md mb-6 text-left max-w-md mx-auto"> 
-               {/* Centered Heading */}
-               <h4 className="text-md font-semibold mb-4 text-purple-300 text-center">Your Dimensions:</h4> 
+             {/* Dimensions Box - Keep semi-transparent dark bg */}
+             <div className="bg-slate-700/40 p-4 rounded-md mb-4 text-left max-w-md mx-auto">
+               <h4 className="text-lg font-semibold mb-4 text-purple-300 text-center">Your Dimensions:</h4> {/* Keep Purple Accent */} 
                {dimensions.map(dim => {
-                   // Calculate values
                    const percent = percentages[dim.key] ?? 50;
                    const type1 = dim.type1;
                    const type2 = dim.type2;
                    const isType1Dominant = percent >= 50;
                    const dominantType = isType1Dominant ? type1 : type2;
                    const dominantPercent = isType1Dominant ? percent : 100 - percent;
-                   // Get sentence using the mapping defined outside
                    const sentence = isType1Dominant 
                      ? dimensionSentences[dim.key]?.type1 
                      : dimensionSentences[dim.key]?.type2;
                    
                    return (
-                     <div key={dim.key} className="mb-4 text-center"> 
-                       <p className="text-base text-gray-100 mb-1">{sentence || `${dominantType} Tendency`}</p> 
-                       <p className="text-xs text-gray-400">
+                     <div key={dim.key} className="mb-2 text-center"> 
+                       <p className="text-base text-white mb-1">{sentence || `${dominantType} Tendency`}</p> 
+                       <p className="text-xs text-gray-400"> {/* Muted detail text */} 
                          <span className="font-medium">{dim.name}</span> (
-                           {isType1Dominant ? <strong className="text-blue-400 font-semibold">{type1}</strong> : type1}
+                           {/* Use teal for highlight? */}
+                           {isType1Dominant ? <strong className="font-semibold text-teal-300">{type1}</strong> : type1}
                            {' vs '}
-                           {!isType1Dominant ? <strong className="text-blue-400 font-semibold">{type2}</strong> : type2}
+                           {!isType1Dominant ? <strong className="font-semibold text-teal-300">{type2}</strong> : type2}
                          ) - <span className='font-semibold'>{dominantPercent}%</span>
                        </p>
                      </div>
                    );
                })} 
              </div>
-             {/* Note - Smaller, warning color */} 
+             {/* Note - Standard yellow might be fine */}
              {questions.length > 0 && !allQuestionsAnswered && (
-               <p className="text-xs text-yellow-500 mt-4">
+               <p className="text-xs text-yellow-400 mt-4">
                  Note: Results based on {answers.filter(a => a !== undefined).length} of {questions.length} questions. Retake for full accuracy.
                </p>
              )}
            </div>
-           {/* Buttons - Styled consistently */} 
+           {/* Update button styles for darker theme */}
            <div className="button-group mt-6 flex flex-col sm:flex-row justify-center gap-4">
-             <button onClick={handleShare} className="share-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200 shadow-md">Share on X</button>
+             <button onClick={handleShare} className="share-button bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200 shadow-md">Share on X</button>
              <button onClick={handleRetakeQuiz} className="retake-button bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200 shadow-md">Take Test Again</button>
            </div>
         </div>
@@ -440,11 +476,10 @@ export default function App() {
 
   // Question Screen
   if (showQuiz && questions.length > 0) {
-     // Note: We use questionsOnCurrentPage for rendering this page's questions
      return (
-       // Add relative positioning to the container for absolute positioning of the button
-       <div className="container relative mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center text-white bg-gray-900 quiz-container">
-         {/* Add Back to Home Button */}
+       // Darker background
+       <div className="container relative mx-auto px-4 py-8 min-h-screen flex flex-col items-center text-white bg-gradient-to-b from-slate-800 to-slate-900 quiz-container">
+         {/* Update Back button color */}
          <button 
            onClick={handleRetakeQuiz} 
            className="absolute top-4 left-4 text-sm text-gray-400 hover:text-gray-200 transition-colors duration-200 z-10 bg-transparent border-none p-2"
@@ -453,60 +488,51 @@ export default function App() {
            ← Back to Home
          </button>
 
-         <h1 className="text-3xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text" style={{ lineHeight: '1.2', paddingBottom: '0.25rem' }}>
+         {/* Title - Apply consistent homepage style */}
+         <h1 className="text-3xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text leading-relaxed pb-2">
             DegenType
          </h1>
-         {/* Progress bar shows overall question progress */}
          <ProgressBar current={answeredCount} total={questions.length} /> 
-         <div className="card bg-gray-800 p-6 md:p-8 rounded-lg shadow-xl w-full max-w-3xl question-card"> {/* Wider card */}
-           <p className="question-number text-sm text-gray-400 mb-4">Page {currentPageIndex + 1} of {totalPages}</p>
-           {/* Map over questions for the current page */}
+         <div className="w-full max-w-3xl px-4 py-6 question-card"> 
            {questionsOnCurrentPage.map((question, localIndex) => {
              const globalIndex = startIndex + localIndex;
              const isAnswered = answers[globalIndex] !== undefined;
              const isActive = globalIndex === firstUnansweredIndex;
              const isUpcoming = globalIndex > firstUnansweredIndex;
-             // NEW: Check if it's the immediately preceding answered question
              const isPreviousAnswered = globalIndex === firstUnansweredIndex - 1;
 
-             // Determine container classes based on state
-             let containerClasses = "mb-6 pb-6 border-b border-gray-700 last:border-b-0 last:mb-0 last:pb-0 transition-opacity duration-300 ease-in-out";
+             let containerClasses = "mb-8 pb-4";
              if (isUpcoming) {
                containerClasses += " opacity-50 pointer-events-none"; 
              } else if (isAnswered && !isActive && !isPreviousAnswered) {
-               // Older answered questions (not the previous one) are faded and non-interactive
                containerClasses += " opacity-60 pointer-events-none"; 
              } else if (isPreviousAnswered) {
-                // Slightly fade the previous question, but keep it interactive
                 containerClasses += " opacity-80"; 
              }
-             // Active question has full opacity and is interactive by default
-
-             // Determine if buttons should be interactive
              const allowInteraction = isActive || isPreviousAnswered;
              
              return (
                <div key={globalIndex} id={`question-${globalIndex}`} className={containerClasses}>
-                 <h2 className={`question-text text-md md:text-lg font-medium mb-4 text-gray-100 ${!allowInteraction && !isActive ? 'text-gray-500' : ''}`}>{globalIndex + 1}. {question.text}</h2>
+                 {/* Question text white unless faded */}
+                 <h2 className={`question-text text-lg md:text-xl font-medium mb-4 text-center ${!allowInteraction && !isActive ? 'text-gray-500 opacity-70' : 'text-white'}`}>{globalIndex + 1}. {question.text}</h2>
                  <div className="likert-scale flex items-center justify-center gap-3 md:gap-4 my-4">
-                   {/* Mute Agree/Disagree labels if interaction not allowed */}
-                   <span className={`text-sm font-medium ${allowInteraction ? 'text-green-400' : 'text-gray-500'}`}>Agree</span>
+                   {/* Keep green/purple agree/disagree active, gray muted */}
+                   <span className={`text-base font-medium ${allowInteraction ? 'text-green-400' : 'text-gray-500'}`}>Agree</span>
                    {likertOptions.map(option => {
                      const isSelected = answers[globalIndex] === option.value;
-                     // Define styles, considering allowInteraction
                      let size = 'w-6 h-6 md:w-7 md:h-7';
-                     let baseBgColor = allowInteraction ? 'bg-gray-700' : 'bg-gray-800'; 
-                     let hoverBgColor = allowInteraction ? 'hover:bg-gray-500' : ''; 
-                     let baseBorderColor = allowInteraction ? 'border-gray-500' : 'border-gray-600';
+                     let baseBgColor = allowInteraction ? 'bg-slate-700/70' : 'bg-slate-800/50'; 
+                     let hoverBgColor = allowInteraction ? 'hover:bg-slate-600' : '';
+                     let baseBorderColor = allowInteraction ? 'border-gray-500' : 'border-gray-700';
                      let selectedBgColor = 'bg-purple-500'; 
                      let selectedBorderColor = 'border-purple-500';
 
-                     if (option.value === 0) { // Neutral
+                     if (option.value === 0) {
                        size = 'w-5 h-5 md:w-6 md:h-6';
                        selectedBgColor = 'bg-gray-400'; 
                        selectedBorderColor = 'border-gray-400';
                        if (allowInteraction) hoverBgColor = 'hover:bg-gray-400';
-                     } else if (option.value > 0) { // Agree side
+                     } else if (option.value > 0) {
                        selectedBgColor = 'bg-green-500'; 
                        selectedBorderColor = 'border-green-500';
                        if(allowInteraction) {
@@ -514,7 +540,7 @@ export default function App() {
                           hoverBgColor = 'hover:bg-green-700';
                        }
                        if (option.value === 2) size = 'w-8 h-8 md:w-9 md:h-9';
-                     } else { // Disagree side
+                     } else {
                        selectedBgColor = 'bg-purple-500';
                        selectedBorderColor = 'border-purple-500';
                        if(allowInteraction) {
@@ -528,13 +554,13 @@ export default function App() {
                        <button
                          key={option.value}
                          title={option.label}
-                         disabled={!allowInteraction} // Disable button if interaction not allowed
+                         disabled={!allowInteraction}
                          className={`likert-circle-btn rounded-full border-2 transition-all duration-200 ease-in-out flex items-center justify-center 
                            ${size} 
                            ${isSelected ? selectedBorderColor : baseBorderColor} 
                            ${isSelected ? selectedBgColor : baseBgColor} 
                            ${!isSelected && allowInteraction ? hoverBgColor : ''} 
-                           ${isSelected ? 'ring-2 ring-offset-2 ring-offset-gray-800 ring-white' : ''}
+                           ${isSelected ? 'ring-2 ring-offset-2 ring-offset-slate-800 ring-white' : ''} /* Adjusted ring offset color */
                            ${!allowInteraction ? 'cursor-not-allowed' : 'cursor-pointer'} 
                          `}
                          onClick={() => handleAnswer(globalIndex, option.value)}
@@ -547,18 +573,20 @@ export default function App() {
                        </button>
                      );
                    })}
-                   {/* Mute Agree/Disagree labels if interaction not allowed */}
-                   <span className={`text-sm font-medium ${allowInteraction ? 'text-purple-400' : 'text-gray-500'}`}>Disagree</span>
+                   {/* Keep green/purple agree/disagree active, gray muted */}
+                   <span className={`text-base font-medium ${allowInteraction ? 'text-purple-400' : 'text-gray-500'}`}>Disagree</span>
                  </div>
                </div>
              );
            })}
-           <div className="navigation-buttons flex justify-between mt-6">
-             <button onClick={handleBack} disabled={currentPageIndex === 0} className="nav-button px-4 py-2 rounded bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200">Back</button>
+           {/* Update Nav button styles */} 
+           <div className="navigation-buttons flex justify-between items-center mt-6">
+             <button onClick={handleBack} disabled={currentPageIndex === 0} className="nav-button px-5 py-2 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200">Back</button>
+             <p className="question-number text-sm text-gray-300">Page {currentPageIndex + 1} of {totalPages}</p>
              <button 
                onClick={handleNext} 
-               disabled={!areAllQuestionsOnPageAnswered()} 
-               className="nav-button px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+               disabled={!areAllQuestionsOnPageAnswered()}
+               className="nav-button px-5 py-2 rounded-full bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
              >
                {currentPageIndex === totalPages - 1 ? 'View Results' : 'Next'}
              </button>
@@ -569,5 +597,5 @@ export default function App() {
   }
 
   // Fallback
-  return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">Loading...</div>; 
+  return <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-800 to-slate-900 text-white">Loading...</div>; 
 }
