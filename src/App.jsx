@@ -309,55 +309,101 @@ export default function App() {
 
   // --- Types Page View --- (Moved to be checked first)
   if (showTypesPage) {
+    // Define Type Groups and Descriptions
+    const typeGroups = [
+      {
+        name: "Strategists 🏗️", 
+        combination: "(Builder + Diamond Hands)", 
+        description: "Calculated, disciplined investors who carefully construct portfolios with a long-term vision, meticulous research, and patience.",
+        codes: ['BDMT', 'BDMN', 'BDOT', 'BDON'] 
+      },
+      {
+        name: "Diamond Explorers 💪", 
+        combination: "(Ape + Diamond Hands)", 
+        description: "Bold, confident adventurers who actively explore and accumulate across the crypto ecosystem, holding tightly through volatility and dips.",
+        codes: ['ADMT', 'ADMN', 'ADOT', 'ADON'] 
+      },
+      {
+        name: "Degens 🚀", 
+        combination: "(Ape + Paper Hands)", 
+        description: "High-risk, impulsive traders and flippers, driven by short-term gains, hype cycles, and adrenaline-fueled market actions.",
+        codes: ['APMT', 'APMN', 'APOT', 'APON'] 
+      },
+      {
+        name: "Cautious Nomads 🧭", 
+        combination: "(Builder + Paper Hands)", 
+        description: "Careful, pragmatic traders who navigate cautiously between assets and ecosystems, always prepared to reposition quickly to avoid losses or seize opportunities.",
+        codes: ['BPMT', 'BPMN', 'BPOT', 'BPON']
+      }
+    ];
+
+    // Map dimensions to their descriptions
+    const dimensionDetails = {
+      AB: "Risk: Ape vs Builder\nFearless, impulsive investors (Apes) eagerly jump into new trends without research, driven by hype. Cautious, strategic investors (Builders) conduct thorough research, prioritizing steady gains.",
+      DP: "Holding: Diamond vs Paper\nResolute holders (Diamond) remain unwavering through volatility, seeing dips as opportunities. Reactive investors (Paper) quickly sell at signs of trouble, with low tolerance for uncertainty.",
+      MO: "Chain: Maxi vs Omni\nDeeply loyal investors (Maxis) commit exclusively to one blockchain. Adventurous investors (Omni) explore and engage across multiple ecosystems, seeking opportunities everywhere.",
+      TN: "Asset: Token vs NFT\nInvestors (Token) focus heavily on fungible tokens, drawn by yield and liquidity. Enthusiastic collectors (NFT) are driven by unique digital assets and their cultural/social prestige."
+    };
+
     return (
-      // Reverted background to sky-500, text to white
+      // Keep blue background theme
       <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center text-white bg-sky-500"> 
-        {/* Reverted Back button text color */} 
+        {/* Back Button */} 
         <button 
            onClick={() => setShowTypesPage(false)}
-           className="absolute top-4 left-4 text-sm text-gray-200 hover:text-white transition-colors duration-200 z-10 bg-transparent border-none p-2"
+           className="absolute top-4 left-4 text-sm text-gray-200 hover:text-white transition-colors duration-200 z-20 bg-transparent border-none p-2" // Ensure button is above content
            aria-label="Back to Home"
          >
            ← Back to Home
          </button>
 
         {/* Added Wrapper Div for layered effect */} 
-        <div className="w-full max-w-4xl mt-16 mb-8 bg-slate-800/30 backdrop-blur-sm rounded-lg p-6 md:p-8 shadow-xl"> 
-          {/* Reverted Title color */} 
-          <h1 className="text-3xl md:text-4xl font-bold mb-8 text-white text-center">Understanding DegenTypes</h1>
+        {/* Increased max-width for more content */} 
+        <div className="w-full max-w-5xl mt-16 mb-8 bg-slate-800/40 backdrop-blur-md rounded-lg p-6 md:p-8 shadow-xl relative z-10"> 
+          <h1 className="text-3xl md:text-4xl font-bold mb-10 text-white text-center">Understanding DegenTypes</h1>
           
-          {/* Dimensions Section */} 
+          {/* Updated Dimensions Section */} 
           <div className="mb-12 px-4"> 
-            {/* Reverted Title color */} 
-            <h2 className="text-2xl font-semibold mb-4 text-white text-center">The Four Dimensions</h2>
-            {/* Reverted List text color */} 
-            <ul className="space-y-2 text-lg max-w-md mx-auto text-left text-gray-100"> 
+            <h2 className="text-2xl font-semibold mb-6 text-white text-center">The Four Dimensions</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left"> 
               {dimensions.map(dim => (
-                <li key={dim.key}>
-                  <span className="font-bold">{dim.name}:</span> {dim.type1} vs. {dim.type2}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Types Section */} 
-          <div> 
-            {/* Reverted Title color */} 
-            <h2 className="text-2xl font-semibold mb-6 text-white text-center">The 16 DegenTypes</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-4"> 
-              {Object.entries(typeDescriptions).map(([code, data]) => (
-                // Reverted card background and text colors 
-                <div key={code} className="p-4 bg-sky-700/50 rounded-lg shadow text-left flex flex-col h-full"> 
-                  <p className="font-bold text-lg mb-1 text-white">{code} - {data.name}</p>
-                  <p className="text-xs italic text-sky-200 mb-2">{data.tagline}</p> 
-                  <p className="text-sm text-gray-200 flex-grow">{data.description}</p> 
+                <div key={dim.key} className="bg-sky-700/50 p-4 rounded-lg shadow">
+                  <h3 className="font-bold text-lg mb-2 text-purple-300">{dim.name}: {dim.type1} vs. {dim.type2}</h3>
+                  <p className="text-sm text-gray-100 whitespace-pre-line">{dimensionDetails[dim.key].split('\n')[1]}</p> {/* Split description */} 
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Updated Types Section with Groups */} 
+          <div className="mb-6"> 
+            <h2 className="text-2xl font-semibold mb-8 text-white text-center">The 16 DegenTypes & 4 Groups</h2>
+            {typeGroups.map(group => (
+              <div key={group.name} className="mb-10"> 
+                <div className="mb-6 px-4 py-4 bg-sky-800/40 rounded-lg shadow-md"> 
+                  <h3 className="text-xl md:text-2xl font-bold text-center mb-2 text-teal-300">{group.name}</h3>
+                  <p className="text-sm italic text-center mb-3 text-sky-200">{group.combination}</p>
+                  <p className="text-base text-center text-gray-100 max-w-2xl mx-auto">{group.description}</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-4"> 
+                  {group.codes.map(code => {
+                    const data = typeDescriptions[code];
+                    if (!data) return null; // Skip if data missing
+                    return (
+                      <div key={code} className="p-4 bg-sky-700/60 rounded-lg shadow text-left flex flex-col h-full"> 
+                        <p className="font-bold text-lg mb-1 text-white">{code} - {data.name}</p>
+                        <p className="text-xs italic text-sky-200 mb-2">{data.tagline}</p> 
+                        <p className="text-sm text-gray-200 flex-grow">{data.description}</p> 
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-         {/* Footer - Reverted text colors */} 
+         {/* Footer */} 
          <footer className="w-full text-center text-xs text-gray-100 mt-auto pb-4 z-10 [text-shadow:1px_1px_1px_rgb(0_0_0_/_0.5)]">
           <p className="mb-1">© 2025 Checkmate Foundation. All rights reserved</p>
           <div className="flex justify-center gap-4">
