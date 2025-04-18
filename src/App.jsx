@@ -154,41 +154,8 @@ export default function App() {
   };
 
   const calculateScores = () => {
-    const scores = {
-      AB: 0, DP: 0, MO: 0, TN: 0
-    };
-    const maxScorePerDimension = questions.filter(q => q.type === 'AB').length * 2; // Assuming max Likert value is 2
-    // Recalculate scores based on answers
-    answers.forEach((answer, index) => {
-      if (answer === undefined || index >= questions.length) return;
-      const question = questions[index];
-      if (!question || !scores.hasOwnProperty(question.type)) return;
-      const positiveTypeValue = question.type[0];
-      const scoreChange = question.positiveType === positiveTypeValue ? answer : -answer;
-      scores[question.type] += scoreChange;
-    });
-
-    // Calculate percentages
-    const calculatedPercentages = {};
-    dimensions.forEach(dim => {
-      const relevantQuestions = questions.filter(q => q.type === dim.key);
-      const numQuestions = relevantQuestions.length;
-      if (numQuestions === 0) {
-        calculatedPercentages[dim.key] = 50; // Default to neutral if no questions
-        return;
-      }
-      const maxPossibleScore = numQuestions * 2; // Max positive swing
-      const totalScoreRange = maxPossibleScore * 2; // Full range from min to max
-
-      const score = scores[dim.key] || 0;
-      // Corrected normalization: (score + max) / (2 * max)
-      const normalizedScore = (score + maxPossibleScore) / totalScoreRange;
-      
-      calculatedPercentages[dim.key] = Math.round(normalizedScore * 100);
-    });
-
-    setPercentages(calculatedPercentages); // Store percentages
-    return { percentages: calculatedPercentages }; // Return only percentages as scores are not used directly
+    // We don't need to recalculate scores since calculateMBTI now returns normalized scores
+    return { percentages: {} }; // Return empty for now, will be replaced by calculateMBTI's results
   };
 
   const handleAnswer = (globalIndex, value) => {
@@ -250,16 +217,31 @@ export default function App() {
   };
 
   const handleViewResults = (force = true) => {
-    const resultType = calculateMBTI(answers);
-    const { percentages: calculatedPercentages } = calculateScores(); // Use the active questions
+    const result = calculateMBTI(answers);
+    const mbtiType = result.type;
+    const calculatedPercentages = result.normalizedScores;
 
-    if (resultType) {
-      setMbtiType(resultType);
+    // Debug logging to verify consistency
+    console.log("MBTI Result Type:", mbtiType);
+    console.log("Calculated Percentages:", calculatedPercentages);
+    
+    // Validate that the percentage-based types match the MBTI result
+    const typeFromPercentages = 
+      (calculatedPercentages.AB >= 50 ? 'A' : 'B') + 
+      (calculatedPercentages.DP >= 50 ? 'D' : 'P') + 
+      (calculatedPercentages.MO >= 50 ? 'M' : 'O') + 
+      (calculatedPercentages.TN >= 50 ? 'T' : 'N');
+    
+    console.log("Type derived from percentages:", typeFromPercentages);
+    console.log("Types match:", typeFromPercentages === mbtiType);
+
+    if (mbtiType) {
+      setMbtiType(mbtiType);
       setPercentages(calculatedPercentages);
       setShowResults(true);
       setShowQuiz(false);
       setAllQuestionsAnswered(true); // Mark as answered
-      window.history.pushState(null, '', `?results=${resultType}`);
+      window.history.pushState(null, '', `?results=${mbtiType}`);
     } else {
       console.error("Failed to calculate MBTI type.");
     }
@@ -300,7 +282,7 @@ export default function App() {
     // Use window.location.href to get the full results URL
     const resultUrl = window.location.href; 
 
-    const shareText = `My DegenType is ${result.name} (${mbtiType})! 🚀\n\n${breakdown}\n\nFind yours: ${resultUrl}\n\n@CheckmateFDN #CryptoMBTI #DegenType`;
+    const shareText = `My Crypto MBTI type is ${result.name} (${mbtiType})! 🚀\n\n${breakdown}\n\nFind yours: ${resultUrl}\n\n@CheckmateFDN #CryptoMBTI`;
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
     window.open(twitterUrl, '_blank');
   };
@@ -346,69 +328,103 @@ export default function App() {
     };
 
     return (
-      // Keep blue background theme
-      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center text-white bg-sky-500"> 
+      // Updated to white background with gradients like the rest of the app
+      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center text-gray-800 bg-white relative overflow-hidden"> 
+        {/* Add subtle background elements */}
+        <div className="absolute top-0 right-0 w-1/4 h-1/4 bg-gradient-to-bl from-purple-100 to-transparent rounded-bl-full opacity-30 z-0"></div>
+        <div className="absolute bottom-0 left-0 w-1/4 h-1/4 bg-gradient-to-tr from-blue-100 to-transparent rounded-tr-full opacity-30 z-0"></div>
+        
         {/* Back Button */} 
         <button 
            onClick={() => setShowTypesPage(false)}
-           className="absolute top-4 left-4 text-sm text-gray-200 hover:text-white transition-colors duration-200 z-20 bg-transparent border-none p-2" // Ensure button is above content
+           className="absolute top-4 left-4 text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200 z-20 bg-transparent border-none p-2"
            aria-label="Back to Home"
          >
            ← Back to Home
          </button>
 
-        {/* Added Wrapper Div for layered effect */} 
+        {/* Updated title with gradient */}
+        <h1 className="text-3xl md:text-4xl font-bold mb-10 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text text-center z-10 mt-16">
+          Understanding your Crypto Personality
+        </h1>
+
         {/* Increased max-width for more content */} 
-        <div className="w-full max-w-5xl mt-16 mb-8 bg-slate-800/40 backdrop-blur-md rounded-lg p-6 md:p-8 shadow-xl relative z-10"> 
-          <h1 className="text-3xl md:text-4xl font-bold mb-10 text-white text-center">Understanding DegenTypes</h1>
-          
+        <div className="w-full max-w-5xl mb-8 bg-white shadow-md rounded-xl p-6 md:p-8 relative z-10"> 
           {/* Updated Dimensions Section */} 
           <div className="mb-12 px-4"> 
-            <h2 className="text-2xl font-semibold mb-6 text-white text-center">The Four Dimensions</h2>
+            <h2 className="text-2xl font-semibold mb-6 text-gray-800 text-center">The Four Dimensions</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left"> 
-              {dimensions.map(dim => (
-                <div key={dim.key} className="bg-sky-700/50 p-4 rounded-lg shadow">
-                  <h3 className="font-bold text-lg mb-2 text-purple-300">{dim.name}: {dim.type1} vs. {dim.type2}</h3>
-                  <p className="text-sm text-gray-100 whitespace-pre-line">{dimensionDetails[dim.key].split('\n')[1]}</p> {/* Split description */} 
-                </div>
-              ))}
+              {dimensions.map((dim, index) => {
+                // Create an array of gradient classes for each dimension
+                const gradients = [
+                  "bg-gradient-to-r from-purple-50 to-white border-l-4 border-purple-400",
+                  "bg-gradient-to-r from-blue-50 to-white border-l-4 border-blue-400",
+                  "bg-gradient-to-r from-teal-50 to-white border-l-4 border-teal-400",
+                  "bg-gradient-to-r from-indigo-50 to-white border-l-4 border-indigo-400"
+                ];
+                const titleColors = ["text-purple-700", "text-blue-700", "text-teal-700", "text-indigo-700"];
+                
+                return (
+                  <div key={dim.key} className={`p-4 rounded-lg shadow-sm ${gradients[index]}`}>
+                    <h3 className={`font-bold text-lg mb-2 ${titleColors[index]}`}>{dim.name}: {dim.type1} vs. {dim.type2}</h3>
+                    <p className="text-sm text-gray-700 whitespace-pre-line">{dimensionDetails[dim.key].split('\n')[1]}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           {/* Updated Types Section with Groups */} 
           <div className="mb-6"> 
-            <h2 className="text-2xl font-semibold mb-8 text-white text-center">The 16 DegenTypes & 4 Groups</h2>
-            {typeGroups.map(group => (
-              <div key={group.name} className="mb-10"> 
-                <div className="mb-6 px-4 py-4 bg-sky-800/40 rounded-lg shadow-md"> 
-                  <h3 className="text-xl md:text-2xl font-bold text-center mb-2 text-teal-300">{group.name}</h3>
-                  <p className="text-sm italic text-center mb-3 text-sky-200">{group.combination}</p>
-                  <p className="text-base text-center text-gray-100 max-w-2xl mx-auto">{group.description}</p>
+            <h2 className="text-2xl font-semibold mb-8 text-gray-800 text-center">The 16 Crypto Personalities</h2>
+            {typeGroups.map((group, groupIndex) => {
+              // Create an array of header gradient classes for each group
+              const headerGradients = [
+                "bg-gradient-to-r from-purple-100 to-purple-50 border-purple-200", 
+                "bg-gradient-to-r from-blue-100 to-blue-50 border-blue-200",
+                "bg-gradient-to-r from-teal-100 to-teal-50 border-teal-200", 
+                "bg-gradient-to-r from-indigo-100 to-indigo-50 border-indigo-200"
+              ];
+              const headerTextColors = ["text-purple-700", "text-blue-700", "text-teal-700", "text-indigo-700"];
+              const cardGradients = [
+                "bg-gradient-to-br from-white to-purple-50 border-purple-100",
+                "bg-gradient-to-br from-white to-blue-50 border-blue-100",
+                "bg-gradient-to-br from-white to-teal-50 border-teal-100",
+                "bg-gradient-to-br from-white to-indigo-50 border-indigo-100"
+              ];
+              
+              return (
+                <div key={group.name} className="mb-10"> 
+                  <div className={`mb-6 px-4 py-4 ${headerGradients[groupIndex]} rounded-lg shadow-sm border`}> 
+                    <h3 className={`text-xl md:text-2xl font-bold text-center mb-2 ${headerTextColors[groupIndex]}`}>{group.name}</h3>
+                    <p className="text-sm italic text-center mb-3 text-gray-600">{group.combination}</p>
+                    <p className="text-base text-center text-gray-700 max-w-2xl mx-auto">{group.description}</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-4"> 
+                    {group.codes.map(code => {
+                      const data = typeDescriptions[code];
+                      if (!data) return null; // Skip if data missing
+                      return (
+                        <div key={code} className={`p-4 ${cardGradients[groupIndex]} rounded-lg shadow-sm border text-left flex flex-col h-full`}> 
+                          <p className="font-bold text-lg mb-1 text-gray-800">{code} - {data.name}</p>
+                          <p className="text-xs italic text-gray-600 mb-2">{data.tagline}</p> 
+                          <p className="text-sm text-gray-700 flex-grow">{data.description}</p> 
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-4"> 
-                  {group.codes.map(code => {
-                    const data = typeDescriptions[code];
-                    if (!data) return null; // Skip if data missing
-                    return (
-                      <div key={code} className="p-4 bg-sky-700/60 rounded-lg shadow text-left flex flex-col h-full"> 
-                        <p className="font-bold text-lg mb-1 text-white">{code} - {data.name}</p>
-                        <p className="text-xs italic text-sky-200 mb-2">{data.tagline}</p> 
-                        <p className="text-sm text-gray-200 flex-grow">{data.description}</p> 
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
          {/* Footer */} 
-         <footer className="w-full text-center text-xs text-gray-100 mt-auto pb-4 z-10 [text-shadow:1px_1px_1px_rgb(0_0_0_/_0.5)]">
+         <footer className="w-full text-center text-xs text-gray-600 mt-auto pb-4 z-10">
           <p className="mb-1">© 2025 Checkmate Foundation. All rights reserved</p>
           <div className="flex justify-center gap-4">
-            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white underline">Terms & Conditions</a>
-            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white underline">Privacy Policy</a>
+            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-800 underline">Terms & Conditions</a>
+            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-800 underline">Privacy Policy</a>
           </div>
         </footer>
       </div>
@@ -418,68 +434,87 @@ export default function App() {
   // Home Screen (Check this *after* Types Page)
   if (!showQuiz && !showResults) { 
     return (
-      // New layout: Full background image, content centered with padding
-      // Changed justify-end back to justify-center, removed pb-32
+      // Enhanced with a subtle gradient background and decorative elements
       <div 
-        className="container mx-auto px-4 min-h-screen flex flex-col justify-center items-center text-white home-container relative" 
-        style={{
-          backgroundImage: 'url(/home_background_v2.jpg)', 
-          backgroundSize: 'cover',
-          backgroundPosition: 'center center',
-          backgroundRepeat: 'no-repeat'
-        }}
+        className="container mx-auto px-4 min-h-screen flex flex-col justify-center items-center bg-white text-gray-800 home-container relative overflow-hidden"
       >
-        {/* Removed Overlay Div */}
-
-        {/* Main Content Area - Centered Horizontally and Vertically */}
-        {/* Reduced top padding pt-60 -> pt-16 */} 
-        <div className="w-full max-w-xl text-center z-10 pt-16">
-          {/* Text Content - White with Shadow */}
-          {/* Title Line 1 */}
-          <h1 className="text-4xl md:text-5xl font-bold mb-1 text-white [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.6)]"> {/* Reduced mb-4 to mb-1 */} 
-            DegenType
+        {/* Add decorative elements in the background */}
+        <div className="absolute top-0 right-0 w-1/3 h-1/3 bg-gradient-to-br from-purple-100 to-purple-200 rounded-bl-full opacity-50 z-0"></div>
+        <div className="absolute bottom-0 left-0 w-1/2 h-1/3 bg-gradient-to-tr from-blue-100 to-blue-200 rounded-tr-full opacity-50 z-0"></div>
+        <div className="absolute top-1/4 left-1/4 w-4 h-4 rounded-full bg-purple-300 opacity-30"></div>
+        <div className="absolute bottom-1/3 right-1/4 w-6 h-6 rounded-full bg-blue-300 opacity-40"></div>
+        <div className="absolute top-1/2 right-1/3 w-3 h-3 rounded-full bg-teal-300 opacity-30"></div>
+        
+        {/* Main Content Area */}
+        <div className="w-full max-w-xl text-center z-10 pt-16 relative">
+          {/* Add a subtle gradient card behind the main content */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white via-gray-50 to-white rounded-xl -z-10"></div>
+          
+          {/* Title with gradient text to match other pages */}
+          <h1 className="text-4xl md:text-5xl font-bold mb-1 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text"> 
+            Crypto MBTI
           </h1>
-          {/* Title Line 2 - Smaller */}
-          <p className="text-2xl md:text-3xl mb-8 text-white [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.6)]"> {/* New line, smaller size */} 
-            MBTI for Crypto Degens
+          {/* Subtitle with darker text - reduced bottom margin */}
+          <p className="text-2xl md:text-3xl mb-4 text-gray-700"> 
+            Free Crypto Personality Test
           </p>
-          {/* Tagline */}
-          <p className="text-lg md:text-xl mb-8 text-white [text-shadow:1px_1px_2px_rgb(0_0_0_/_0.6)]"> 
-            Find your crypto personality
-          </p>
-
-          {/* Button Area - Positioned below text */}
-          <div className="flex flex-col gap-4 items-center mt-20">
+          {/* Replace tagline with new content about 4 key traits - reduced margins and padding */}
+          <div className="mb-6 max-w-md mx-auto text-left px-5 py-3 bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-sm">
+            <h3 className="text-lg font-semibold mb-2 text-gray-800 text-center">What Shapes Your Crypto Personality?</h3>
+            
+            <div className="space-y-2">
+              <div className="p-1.5 rounded-lg bg-gradient-to-r from-purple-50 to-white">
+                <p className="font-medium text-purple-700 text-sm">Risk Instinct:</p>
+                <p className="text-gray-600 text-sm">Are you a fearless Ape, or a calculated Builder?</p>
+              </div>
+              
+              <div className="p-1.5 rounded-lg bg-gradient-to-r from-blue-50 to-white">
+                <p className="font-medium text-blue-700 text-sm">Holding Style:</p>
+                <p className="text-gray-600 text-sm">Do you have Diamond Hands through the dips, or Paper Hands ready to exit?</p>
+              </div>
+              
+              <div className="p-1.5 rounded-lg bg-gradient-to-r from-teal-50 to-white">
+                <p className="font-medium text-teal-700 text-sm">Chain Loyalty:</p>
+                <p className="text-gray-600 text-sm">Are you a loyal Maxi, or an adventurous Omni explorer?</p>
+              </div>
+              
+              <div className="p-1.5 rounded-lg bg-gradient-to-r from-indigo-50 to-white">
+                <p className="font-medium text-indigo-700 text-sm">Asset Identity:</p>
+                <p className="text-gray-600 text-sm">Do you vibe with Tokens for gains, or NFTs for culture?</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Button Area - Reduced top margin */}
+          <div className="flex flex-col gap-4 items-center mt-8">
             <button
               onClick={() => startTest('lite')}
-              // Lighter sky blue background
-              className="bg-sky-400 hover:bg-sky-500 text-white px-8 py-3 rounded-full text-lg font-semibold transition-colors w-64 shadow-lg"
+              className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white px-8 py-3 rounded-full text-lg font-semibold transition-all w-64 shadow-md"
             >
               Lite Test (~2 mins)
             </button>
             <button
               onClick={() => startTest('standard')}
-              // Darker sky blue background
-              className="bg-sky-600 hover:bg-sky-700 text-white px-8 py-3 rounded-full text-lg font-semibold transition-colors w-64 shadow-lg"
+              className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white px-8 py-3 rounded-full text-lg font-semibold transition-all w-64 shadow-md"
             >
               Standard (~5 mins)
             </button>
-            {/* Restyled button */}
+            {/* Learn more button styled to match other secondary buttons */}
             <button 
               onClick={() => setShowTypesPage(true)}
-              className="bg-gray-600 hover:bg-gray-700 text-white text-sm px-4 py-1 rounded-full transition-colors shadow focus:outline-none mt-4"
+              className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm px-4 py-2 rounded-full transition-colors shadow-md focus:outline-none mt-4"
             >
-              Learn about the 16 DegenTypes
+              Learn about the 16 Personalities
             </button>
           </div>
         </div>
 
-        {/* Footer - Pushed to bottom by parent flex */}
-        <footer className="w-full text-center text-xs text-gray-100 mt-auto pb-4 z-10 [text-shadow:1px_1px_1px_rgb(0_0_0_/_0.5)]">
+        {/* Footer - Updated text color for white background */}
+        <footer className="w-full text-center text-xs text-gray-600 mt-auto pb-4 z-10">
           <p className="mb-1">© 2025 Checkmate Foundation. All rights reserved</p>
           <div className="flex justify-center gap-4">
-            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white underline">Terms & Conditions</a>
-            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white underline">Privacy Policy</a>
+            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-800 underline">Terms & Conditions</a>
+            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-800 underline">Privacy Policy</a>
           </div>
         </footer>
       </div>
@@ -499,11 +534,18 @@ export default function App() {
       // Revert background to white, default text to dark gray
       <div className="container mx-auto px-4 pb-8 min-h-screen flex flex-col items-center justify-center text-gray-800 bg-white results-container">
         <div className="w-full max-w-2xl text-center p-4 md:p-6">
-           {/* Title - Gradient is fine */} 
+           {/* Updated title */} 
            <h1 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text">
-              Your DegenType Result
+              Your Crypto Personality
            </h1>
            <div className="result-card mb-6"> 
+             {/* Reordered elements: MBTI code first, then name, then image, then tagline */}
+             <h2 className="text-3xl font-bold mb-2 text-teal-600">
+               {mbtiType}
+             </h2>
+             <h3 className="text-2xl font-semibold mb-4 text-black">
+               {result.name}
+             </h3>
              {result.imageUrl && (
                <img 
                  src={result.imageUrl} 
@@ -511,17 +553,10 @@ export default function App() {
                  className="w-36 h-36 md:w-44 md:h-44 rounded-lg mx-auto mb-4 shadow-lg object-cover" 
                />
              )}
-             {/* Reverted text colors for white background */}
-             <h2 className="text-3xl font-bold mb-1 text-teal-600"> {/* Darker Teal */} 
-               {mbtiType}
-             </h2>
-             <h3 className="text-2xl font-semibold mb-1 text-black"> {/* Black */} 
-               {result.name}
-             </h3>
-             <p className="text-base italic mb-2 text-gray-600"> {/* Darker Gray */} 
+             <p className="text-base italic mb-4 text-gray-600">
                {result.tagline}
              </p>
-             <p className="text-base leading-relaxed mb-4 text-gray-700 max-w-prose mx-auto"> {/* Darker Gray */} 
+             <p className="text-base leading-relaxed mb-4 text-gray-700 max-w-prose mx-auto">
                {result.description}
              </p>
              {/* Dimensions Box - Light gray background */} 
@@ -586,7 +621,7 @@ export default function App() {
 
          {/* Title - Gradient should be fine */} 
          <h1 className="text-3xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text leading-relaxed pb-2">
-            DegenType
+            Crypto MBTI
          </h1>
          {/* Updated Progress Bar Track */} 
          <ProgressBar current={answeredCount} total={questions.length} /> 

@@ -33,20 +33,47 @@ export function calculateMBTI(answers) {
     }
   });
 
-  // Determine the type based on scores
-  const firstLetter = scores.AB >= 0 ? 'A' : 'B';  // Risk: Ape vs Builder
-  const secondLetter = scores.DP >= 0 ? 'D' : 'P'; // Holding: Diamond vs Paper
-  const thirdLetter = scores.MO >= 0 ? 'M' : 'O';  // Chain: Maxi vs Omni
-  const fourthLetter = scores.TN >= 0 ? 'T' : 'N'; // Asset: Token vs NFT
+  // Calculate relevant max scores for proper normalization
+  const dimensionQuestionCounts = {
+    AB: questions.filter(q => q.type === 'AB').length,
+    DP: questions.filter(q => q.type === 'DP').length,
+    MO: questions.filter(q => q.type === 'MO').length,
+    TN: questions.filter(q => q.type === 'TN').length
+  };
+
+  const normalizedScores = {};
+
+  // Calculate normalized percentages (0-100) for each dimension
+  Object.keys(scores).forEach(dim => {
+    const numQuestions = dimensionQuestionCounts[dim];
+    if (numQuestions === 0) {
+      normalizedScores[dim] = 50; // Default to neutral
+      return;
+    }
+
+    const maxPossibleScore = numQuestions * 2; // Max positive swing
+    const totalScoreRange = maxPossibleScore * 2; // Full range from min to max
+    
+    // Normalize to 0-100 range
+    const normalizedScore = Math.round(((scores[dim] + maxPossibleScore) / totalScoreRange) * 100);
+    normalizedScores[dim] = normalizedScore;
+  });
+
+  console.log("Raw scores:", scores);
+  console.log("Normalized scores (0-100):", normalizedScores);
+
+  // CRITICAL: Determine the type based on normalized scores instead of raw scores
+  // This ensures consistency with the displayed percentages in the UI
+  const firstLetter = normalizedScores.AB >= 50 ? 'A' : 'B';  // Risk: Ape (>50%) vs Builder (<50%)
+  const secondLetter = normalizedScores.DP >= 50 ? 'D' : 'P'; // Holding: Diamond (>50%) vs Paper (<50%)
+  const thirdLetter = normalizedScores.MO >= 50 ? 'M' : 'O';  // Chain: Maxi (>50%) vs Omni (<50%)
+  const fourthLetter = normalizedScores.TN >= 50 ? 'T' : 'N'; // Asset: Token (>50%) vs NFT (<50%)
 
   const type = firstLetter + secondLetter + thirdLetter + fourthLetter;
+  console.log("Final type:", type);
 
-  // Since typeDescriptions is empty now, we don't need to validate against it.
-  // We will add the descriptions later.
-  // if (!typeDescriptions[type]) {
-  //   console.error('Invalid type calculated or description missing:', type);
-  //   return null; // Or handle as needed
-  // }
-
-  return type;
+  return {
+    type, 
+    normalizedScores // Return the normalized scores to help with debugging
+  };
 } 
