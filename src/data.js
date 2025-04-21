@@ -75,9 +75,39 @@ export const typeDescriptions = {
 };
 
 export const likertOptions = [
-  { value: 2, label: 'Strongly Agree' },
-  { value: 1, label: 'Agree' },
-  { value: 0, label: 'Neutral' },
-  { value: -1, label: 'Disagree' },
-  { value: -2, label: 'Strongly Disagree' },
+  { // Strongly Agree (Darkest Green)
+    value: 2, 
+    label: 'Strongly Agree', 
+    defaultClasses: 'bg-slate-700/50 border-slate-600 text-slate-300',
+    hoverClasses: 'hover:bg-emerald-700/80 hover:border-emerald-600 hover:text-white', // Adjusted opacity/shade
+    selectedClasses: 'bg-gradient-to-r from-emerald-600 to-green-700 text-white border-transparent shadow-md scale-105' 
+  },
+  { // Agree (Lighter Green, same style pattern)
+    value: 1, 
+    label: 'Agree', 
+    defaultClasses: 'bg-slate-700/50 border-slate-600 text-slate-300',
+    hoverClasses: 'hover:bg-emerald-500/70 hover:border-emerald-400 hover:text-white', // Lighter hover
+    selectedClasses: 'bg-gradient-to-r from-emerald-400 to-green-500 text-white border-transparent shadow-md scale-105' // Lighter selected, matching style
+  },
+  { // Neutral (Grey)
+    value: 0, 
+    label: 'Neutral', 
+    defaultClasses: 'bg-slate-700/50 border-slate-600 text-slate-300',
+    hoverClasses: 'hover:bg-slate-600/70 hover:border-slate-500 hover:text-white',
+    selectedClasses: 'bg-slate-500 text-white border-transparent shadow-md scale-105'
+  },
+  { // Disagree (Lighter Red, same style pattern)
+    value: -1, 
+    label: 'Disagree', 
+    defaultClasses: 'bg-slate-700/50 border-slate-600 text-slate-300',
+    hoverClasses: 'hover:bg-red-500/70 hover:border-red-400 hover:text-white', // Lighter hover
+    selectedClasses: 'bg-gradient-to-r from-red-400 to-rose-500 text-white border-transparent shadow-md scale-105' // Lighter selected, matching style
+  },
+  { // Strongly Disagree (Darkest Red)
+    value: -2, 
+    label: 'Strongly Disagree', 
+    defaultClasses: 'bg-slate-700/50 border-slate-600 text-slate-300',
+    hoverClasses: 'hover:bg-red-700/80 hover:border-red-600 hover:text-white', // Adjusted opacity/shade
+    selectedClasses: 'bg-gradient-to-r from-red-600 to-rose-700 text-white border-transparent shadow-md scale-105' 
+  },
 ];

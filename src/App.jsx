@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { questions as initialQuestions, likertOptions, typeDescriptions } from './data'; // Re-added typeDescriptions import
+import { supabase } from './supabaseClient'; // <-- Import supabase
+import { questions as initialQuestions, likertOptions, typeDescriptions } from './data'; // Removed dimensionSentences import
 import { calculateMBTI } from './calculateType';
 import './index.css'; // Explicitly setting correct import path
+import AuthModal from './components/AuthModal'; // Import AuthModal
+import Login from './components/Login';       // Import Login
+import Register from './components/Register'; // Import Register
+import ErrorBoundary from './components/ErrorBoundary'; // <-- Import ErrorBoundary
+import ProgressBar from './components/ProgressBar'; // <-- Re-added import
+// import ProgressBar from './components/ProgressBar'; // Assuming ProgressBar was externalized or correctly defined <-- REMOVED
 
 // Function to get questions based on test type
 const getTestQuestions = (type) => {
@@ -47,27 +54,13 @@ const DimensionBar = ({ label, score }) => {
   );
 };
 
-const ProgressBar = ({ current, total }) => {
-  const progress = total > 0 ? (current / total) * 100 : 0;
-  return (
-    // Darker track
-    <div className="w-4/5 mx-auto bg-slate-700/60 rounded-full h-2 my-4">
-      <div 
-        style={{ width: `${progress}%` }}
-        // Brighter gradient
-        className="bg-gradient-to-r from-teal-400 to-cyan-500 h-full rounded-full transition-all duration-300 ease"
-      />
-    </div>
-  );
-};
-
 // Moved sentence mapping outside the component
-const dimensionSentences = {
-  AB: { type1: "You like Aping into Crypto", type2: "You prefer to Build in Crypto" },
-  DP: { type1: "You are Diamond Hands on your assets", type2: "You tend to have Paper Hands" },
-  MO: { type1: "You are more of a Chain Maxi", type2: "You explore across Omni-chain" },
-  TN: { type1: "You prefer Tokens over NFTs", type2: "You prefer NFTs over Tokens" },
-};
+// const dimensionSentences = {  // <-- REMOVE THIS DECLARATION
+//   AB: { type1: "You like Aping into Crypto", type2: "You prefer to Build in Crypto" },
+//   DP: { type1: "You are Diamond Hands on your assets", type2: "You tend to have Paper Hands" },
+//   MO: { type1: "You are more of a Chain Maxi", type2: "You explore across Omni-chain" },
+//   TN: { type1: "You prefer Tokens over NFTs", type2: "You prefer NFTs over Tokens" },
+// };
 
 export default function App() {
   const [testType, setTestType] = useState(null); // 'lite', 'standard', or null
@@ -83,12 +76,43 @@ export default function App() {
 
   const [percentages, setPercentages] = useState({});
 
+  // --- New Authentication State ---
+  const [session, setSession] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [pendingTestType, setPendingTestType] = useState(null); // Store test type while login occurs
+  // --- New State for Guest Results --- 
+  const [guestResultData, setGuestResultData] = useState(null);
+  // --- New state to store initial ref code ---
+  const [initialReferralCode, setInitialReferralCode] = useState(null);
+  // --- State for Previous Results ---
+  const [previousResults, setPreviousResults] = useState([]);
+  const [loadingPreviousResults, setLoadingPreviousResults] = useState(false);
+  const [showHistoryPage, setShowHistoryPage] = useState(false); // To toggle history view
+  // --- State for Profile Dropdown ---
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  // --- State for Leaderboard ---
+  const [leaderboardData, setLeaderboardData] = useState([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+  const [showLeaderboardPage, setShowLeaderboardPage] = useState(false);
+  // --- End State ---
+
   const dimensions = [
     { key: 'AB', name: 'Risk', type1: 'Ape', type2: 'Builder', emoji: '🦍/👷' },
     { key: 'DP', name: 'Holding', type1: 'Diamond', type2: 'Paper', emoji: '💎/📄' },
     { key: 'MO', name: 'Chain', type1: 'Maxi', type2: 'Omni', emoji: '⛓️/🌌' },
     { key: 'TN', name: 'Asset', type1: 'Token', type2: 'NFT', emoji: '🪙/🖼️' },
   ];
+
+  // Restore dimensionSentences definition here
+  const dimensionSentences = {
+    AB: { type1: "You like Aping into Crypto", type2: "You prefer to Build in Crypto" },
+    DP: { type1: "You are Diamond Hands on your assets", type2: "You tend to have Paper Hands" },
+    MO: { type1: "You are more of a Chain Maxi", type2: "You explore across Omni-chain" },
+    TN: { type1: "You prefer Tokens over NFTs", type2: "You prefer NFTs over Tokens" },
+  };  
 
   // --- Calculate derived state early --- 
   const answeredCount = answers.filter(a => a !== undefined).length;
@@ -104,15 +128,98 @@ export default function App() {
 
   // --- Effects --- 
   useEffect(() => {
-    // Handle initial URL loading (simplified)
-    const urlParams = new URLSearchParams(window.location.search);
-    const resultsParam = urlParams.get('results');
-    if (resultsParam && initialQuestions.length > 0) { 
-      setMbtiType(resultsParam);
-      setShowResults(true);
-      setShowQuiz(false); 
-    }
+    // --- Supabase Auth Listener --- 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log("Auth event:", _event, session);
+      setSession(session); // Set session immediately
+
+      if (session?.user) {
+        // --- Add Delay --- 
+        console.log('[onAuthStateChange] User detected, setting loading and scheduling profile fetch...');
+        setLoadingProfile(true); // Set loading BEFORE the timeout
+        const userId = session.user.id;
+        setTimeout(() => {
+          console.log(`[onAuthStateChange] Timeout finished, calling fetchUserProfile for ${userId}`);
+          fetchUserProfile(userId); // Call fetch after a short delay
+        }, 100); // 100ms delay
+        // --- End Delay --- 
+        
+      } else {
+        setUserProfile(null); // Clear profile on logout
+        setLoadingProfile(false); // Ensure loading is false on logout
+      }
+    });
+
+    // Initial session check
+    const checkInitialSession = async () => {
+      console.log("[Initial Check] Checking for existing session...");
+      const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error("[Initial Check] Error getting session:", error.message);
+        setLoadingProfile(false); // Ensure loading stops if session check fails
+        return;
+      }
+      console.log("[Initial Check] Session found:", initialSession ? initialSession.user.id : null);
+      setSession(initialSession);
+      if (initialSession?.user) {
+        console.log("[Initial Check] Session exists, fetching profile...");
+        await fetchUserProfile(initialSession.user.id); // Fetch profile if session exists on load
+      } else {
+        console.log("[Initial Check] No session, setting loading false.");
+        setLoadingProfile(false); // No session, profile loading is done (it's null)
+      }
+
+      // --- Handle initial URL params ONCE --- 
+      const urlParams = new URLSearchParams(window.location.search);
+      const resultsParam = urlParams.get('results');
+      const refParam = urlParams.get('ref'); // Get ref code
+
+      if (refParam) {
+        setInitialReferralCode(refParam.toUpperCase()); // Store initial ref code
+        console.log("[Initial Check] Stored initial referral code:", refParam.toUpperCase());
+      }
+
+      if (resultsParam && initialQuestions.length > 0) {
+        setMbtiType(resultsParam);
+        setShowResults(true);
+        setShowQuiz(false);
+      } 
+      // We don't need the history replace state logic here anymore as URL changes during quiz/results naturally
+      // --- End initial URL param handling ---
+    };
+    checkInitialSession();
+
+    // Cleanup listener on component unmount
+    return () => {
+      console.log("[Cleanup] Unsubscribing from auth state changes.");
+      subscription?.unsubscribe();
+    };
   }, []); // Run only once on mount
+  
+  // --- Effect to close modal and start test AFTER profile is loaded ---
+  useEffect(() => {
+    if (!loadingProfile && session) {
+      console.log('[Effect] Login/Profile load sequence finished.');
+      
+      if (showAuthModal) {
+         console.log('[Effect] Closing auth modal.');
+         setShowAuthModal(false); 
+      }
+
+      // --- Check for Guest Data to Save --- 
+      if (guestResultData && userProfile) { // Make sure profile is loaded before saving
+        console.log('[Effect] Detected guest data and logged-in user, attempting to save...');
+        saveGuestResult(guestResultData);
+      } 
+      // --- End Check --- 
+      
+      else if (pendingTestType) { // Only start pending test if guest data wasn't just saved
+        console.log(`[Effect] Initiating pending test: ${pendingTestType}`);
+        initiateTest(pendingTestType);
+        setPendingTestType(null); 
+      }
+    } 
+  }, [session, userProfile, loadingProfile, pendingTestType, guestResultData]); // Add guestResultData and userProfile to dependencies
 
   // Effect to scroll to the TOP of the page when the page index changes
   useEffect(() => {
@@ -137,10 +244,52 @@ export default function App() {
     }
   }, [showResults]);
 
-  // --- Handlers ---
-  const startTest = (type) => {
+  // --- Helper Functions ---
+  const fetchUserProfile = async (authUserId) => {
+    console.log(`[fetchUserProfile] Fetching profile for auth_user_id: ${authUserId}`);
+    let profileData = null;
+    let queryError = null;
+    let queryStatus = null;
+
+    try {
+      console.log('[fetchUserProfile] Executing Supabase query with .single()...');
+      // --- Revert to original query --- 
+      const { data, error, status } = await supabase
+        .from('users')
+        .select(`id, username, referral_code, points, referred_by`)
+        .eq('auth_user_id', authUserId)
+        .single();
+      // --- End Revert --- 
+      
+      queryError = error;
+      queryStatus = status;
+      console.log(`[fetchUserProfile] Query result - Status: ${status}, Error: ${JSON.stringify(error)}, Data:`, data);
+
+      if (error && status !== 406) { // Status 406 from .single() means no row found
+        console.error('[fetchUserProfile] Supabase query error (excluding 406):', error);
+      } else if (data) { // Data is now an object or null
+        profileData = data;
+        console.log('[fetchUserProfile] Profile data found:', profileData);
+      } else {
+        console.log('[fetchUserProfile] No profile data found (status 406 or data null).');
+      }
+
+    } catch (error) {
+      console.error('[fetchUserProfile] Caught error during query execution:', error.message);
+      queryError = error; // Store error if await itself fails
+    } 
+
+    // --- Update state AFTER the await --- 
+    console.log('[fetchUserProfile] Updating state AFTER query attempt...');
+    setUserProfile(profileData); // Set profile data (or null if not found/error)
+    setLoadingProfile(false);
+    console.log('[fetchUserProfile] Finished state updates.');
+  };
+
+  // --- Initiate Test (actual setup) ---
+  const initiateTest = (type) => {
     const selectedQuestions = getTestQuestions(type);
-    const qpp = 4; // Set questions per page to 4 for both modes
+    const qpp = 4; // Set questions per page
     setTestType(type);
     setQuestions(selectedQuestions);
     setAnswers(Array(selectedQuestions.length).fill(undefined));
@@ -150,7 +299,36 @@ export default function App() {
     setShowResults(false);
     setMbtiType(null);
     setPercentages({});
-    window.history.pushState(null, '', `?test=${type}&page=1`); // Optional URL update
+    window.history.pushState(null, '', `?test=${type}&page=1`);
+  };
+
+  // --- Start Test Flow (Handles Auth Check) ---
+  const startTestFlow = (type) => {
+    console.log(`[startTestFlow] Function called with type: ${type}`);
+    console.log('[startTestFlow] Current session state:', session);
+    console.log('[startTestFlow] Current userProfile state:', userProfile);
+    console.log('[startTestFlow] Current showAuthModal state:', showAuthModal);
+    
+    if (!type) {
+      console.error('[startTestFlow] No test type provided');
+      return;
+    }
+
+    if (session?.user) {
+      if (userProfile) {
+        console.log('[startTestFlow] User logged in and profile loaded, starting test directly.');
+        initiateTest(type);
+      } else {
+        console.log('[startTestFlow] User logged in but profile not loaded yet, setting pending type.');
+        setPendingTestType(type);
+      }
+    } else {
+      console.log('[startTestFlow] User not logged in, showing auth modal.');
+      setPendingTestType(type);
+      setAuthMode('login');
+      setShowAuthModal(true);
+      console.log('[startTestFlow] Auth modal should now be visible.');
+    }
   };
 
   const calculateScores = () => {
@@ -165,6 +343,7 @@ export default function App() {
       setAnswers(newAnswers);
       
       // --- Scroll to next question IF it's on the same page --- 
+      // /* // <-- REMOVE THIS LINE
       const nextGlobalIndex = globalIndex + 1;
       // Check if the next question index is within the current page bounds (less than endIndex)
       if (nextGlobalIndex < endIndex) { 
@@ -177,6 +356,7 @@ export default function App() {
         }
       }
       // If it's the last question on the page, do nothing - user clicks Next/View Results.
+      // */ // <-- REMOVE THIS LINE
       // --- End scroll logic ---
 
     } else {
@@ -216,16 +396,13 @@ export default function App() {
     }
   };
 
-  const handleViewResults = (force = true) => {
+  const handleViewResults = async (force = true) => { 
     const result = calculateMBTI(answers);
-    const mbtiType = result.type;
+    const mbtiTypeCode = result.type;
     const calculatedPercentages = result.normalizedScores;
 
-    // Debug logging to verify consistency
-    console.log("MBTI Result Type:", mbtiType);
+    console.log("MBTI Result Type:", mbtiTypeCode);
     console.log("Calculated Percentages:", calculatedPercentages);
-    
-    // Validate that the percentage-based types match the MBTI result
     const typeFromPercentages = 
       (calculatedPercentages.AB >= 50 ? 'A' : 'B') + 
       (calculatedPercentages.DP >= 50 ? 'D' : 'P') + 
@@ -233,15 +410,95 @@ export default function App() {
       (calculatedPercentages.TN >= 50 ? 'T' : 'N');
     
     console.log("Type derived from percentages:", typeFromPercentages);
-    console.log("Types match:", typeFromPercentages === mbtiType);
+    console.log("Types match:", typeFromPercentages === mbtiTypeCode);
 
-    if (mbtiType) {
-      setMbtiType(mbtiType);
+    if (mbtiTypeCode) {
+      setMbtiType(mbtiTypeCode);
       setPercentages(calculatedPercentages);
       setShowResults(true);
       setShowQuiz(false);
-      setAllQuestionsAnswered(true); // Mark as answered
-      window.history.pushState(null, '', `?results=${mbtiType}`);
+      setAllQuestionsAnswered(true);
+      window.history.pushState(null, '', `?results=${mbtiTypeCode}`);
+
+      // --- Store or Save Result --- 
+      if (session?.user) {
+        console.log('User logged in, attempting to save results...');
+        setGuestResultData(null); // Clear any potential stale guest data if user is logged in
+        try {
+          const { data: userProfileData } = await supabase
+             .from('users')
+             .select('id, referred_by, points') // Need user ID from our table and referral info
+             .eq('auth_user_id', session.user.id)
+             .single();
+
+          if (!userProfileData) {
+             throw new Error('Could not find user profile to save result.');
+          }
+          
+          // Check if user already has results to prevent double referral points
+          const { data: existingResults, error: resultsError } = await supabase
+            .from('results')
+            .select('id')
+            .eq('user_id', userProfileData.id)
+            .limit(1); 
+            
+          if (resultsError) throw resultsError;  
+            
+          const isFirstResult = existingResults.length === 0;
+
+          const { error: insertError } = await supabase
+            .from('results')
+            .insert({
+              user_id: userProfileData.id, // Use ID from our users table
+              mbti_type: mbtiTypeCode,
+              percentages: calculatedPercentages,
+              test_type: testType // Use the stored testType state
+            });
+          if (insertError) throw insertError;
+          console.log('Result saved successfully!');
+
+          // --- Award referral points if applicable (on first result) ---
+          if (isFirstResult && userProfileData.referred_by) {
+             console.log(`User was referred by ${userProfileData.referred_by}. Awarding point.`);
+             const { data: referrerData, error: referrerError } = await supabase
+                .from('users')
+                .select('id, points')
+                .eq('referral_code', userProfileData.referred_by)
+                .single();
+                
+             if (referrerError) throw new Error(`Error finding referrer: ${referrerError.message}`);
+             
+             if (referrerData) {
+                const newPoints = (referrerData.points || 0) + 1; // Award 1 point
+                const { error: updateError } = await supabase
+                  .from('users')
+                  .update({ points: newPoints })
+                  .eq('id', referrerData.id);
+                  
+                if (updateError) throw new Error(`Error updating referrer points: ${updateError.message}`);
+                console.log(`Referrer ${userProfileData.referred_by} points updated to ${newPoints}`);
+             } else {
+                console.warn(`Referrer with code ${userProfileData.referred_by} not found.`);
+             }
+          }
+          // --- End referral points logic ---
+
+        } catch (error) {
+          console.error('Error saving result or awarding points:', error.message);
+          // Optionally show an error message to the user
+        }
+      } else {
+        // --- User is a GUEST: Store results temporarily --- 
+        console.log('Guest user, storing results temporarily in state.');
+        setGuestResultData({
+          type: mbtiTypeCode,
+          percentages: calculatedPercentages,
+          testType: testType // Use the current testType state
+        });
+        // --- End Guest Store --- 
+      }
+      // --- End Store or Save Result --- 
+
     } else {
       console.error("Failed to calculate MBTI type.");
     }
@@ -257,6 +514,7 @@ export default function App() {
     setMbtiType(null);
     setShowQuiz(false); 
     setPercentages({});
+    setGuestResultData(null); // Also clear guest data on retake
     window.history.pushState(null, '', window.location.pathname);
   };
 
@@ -287,455 +545,898 @@ export default function App() {
     window.open(twitterUrl, '_blank');
   };
 
-  // --- Render Logic --- 
+  // --- New Auth Handlers ---
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error logging out:', error.message);
+    } else {
+      // State updates (session, userProfile) are handled by the onAuthStateChange listener
+      console.log('Logged out successfully');
+      // Optionally redirect to home or clear results
+      handleRetakeQuiz(); // Use retake logic to reset state
+    }
+  };
 
-  // --- Types Page View --- (Moved to be checked first)
-  if (showTypesPage) {
-    // Define Type Groups and Descriptions
-    const typeGroups = [
-      {
-        name: "Strategists 🏗️", 
-        combination: "(Builder + Diamond Hands)", 
-        description: "Calculated, disciplined investors who carefully construct portfolios with a long-term vision, meticulous research, and patience.",
-        codes: ['BDMT', 'BDMN', 'BDOT', 'BDON'] 
-      },
-      {
-        name: "Diamond Explorers 💪", 
-        combination: "(Ape + Diamond Hands)", 
-        description: "Bold, confident adventurers who actively explore and accumulate across the crypto ecosystem, holding tightly through volatility and dips.",
-        codes: ['ADMT', 'ADMN', 'ADOT', 'ADON'] 
-      },
-      {
-        name: "Degens 🚀", 
-        combination: "(Ape + Paper Hands)", 
-        description: "High-risk, impulsive traders and flippers, driven by short-term gains, hype cycles, and adrenaline-fueled market actions.",
-        codes: ['APMT', 'APMN', 'APOT', 'APON'] 
-      },
-      {
-        name: "Cautious Nomads 🧭", 
-        combination: "(Builder + Paper Hands)", 
-        description: "Careful, pragmatic traders who navigate cautiously between assets and ecosystems, always prepared to reposition quickly to avoid losses or seize opportunities.",
-        codes: ['BPMT', 'BPMN', 'BPOT', 'BPON']
-      }
-    ];
+  const handleContinueAsGuest = () => {
+    if (pendingTestType) {
+      console.log('Continuing as guest for test type:', pendingTestType);
+      initiateTest(pendingTestType);
+      setPendingTestType(null);
+      setShowAuthModal(false);
+    } else {
+      // Should ideally not happen if modal is shown correctly
+      console.warn('Continue as Guest clicked but no pending test type found.');
+      setShowAuthModal(false);
+    }
+  };
 
-    // Map dimensions to their descriptions
-    const dimensionDetails = {
-      AB: "Risk: Ape vs Builder\nFearless, impulsive investors (Apes) eagerly jump into new trends without research, driven by hype. Cautious, strategic investors (Builders) conduct thorough research, prioritizing steady gains.",
-      DP: "Holding: Diamond vs Paper\nResolute holders (Diamond) remain unwavering through volatility, seeing dips as opportunities. Reactive investors (Paper) quickly sell at signs of trouble, with low tolerance for uncertainty.",
-      MO: "Chain: Maxi vs Omni\nDeeply loyal investors (Maxis) commit exclusively to one blockchain. Adventurous investors (Omni) explore and engage across multiple ecosystems, seeking opportunities everywhere.",
-      TN: "Asset: Token vs NFT\nInvestors (Token) focus heavily on fungible tokens, drawn by yield and liquidity. Enthusiastic collectors (NFT) are driven by unique digital assets and their cultural/social prestige."
-    };
-
-    return (
-      // Updated to white background with gradients like the rest of the app
-      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center text-gray-800 bg-white relative overflow-hidden"> 
-        {/* Add subtle background elements */}
-        <div className="absolute top-0 right-0 w-1/4 h-1/4 bg-gradient-to-bl from-purple-100 to-transparent rounded-bl-full opacity-30 z-0"></div>
-        <div className="absolute bottom-0 left-0 w-1/4 h-1/4 bg-gradient-to-tr from-blue-100 to-transparent rounded-tr-full opacity-30 z-0"></div>
-        
-        {/* Back Button */} 
-        <button 
-           onClick={() => setShowTypesPage(false)}
-           className="absolute top-4 left-4 text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200 z-20 bg-transparent border-none p-2"
-           aria-label="Back to Home"
-         >
-           ← Back to Home
-         </button>
-
-        {/* Updated title with gradient */}
-        <h1 className="text-3xl md:text-4xl font-bold mb-10 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text text-center z-10 mt-16">
-          Understanding your Crypto Personality
-        </h1>
-
-        {/* Increased max-width for more content */} 
-        <div className="w-full max-w-5xl mb-8 bg-white shadow-md rounded-xl p-6 md:p-8 relative z-10"> 
-          {/* Updated Dimensions Section */} 
-          <div className="mb-12 px-4"> 
-            <h2 className="text-2xl font-semibold mb-6 text-gray-800 text-center">The Four Dimensions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left"> 
-              {dimensions.map((dim, index) => {
-                // Create an array of gradient classes for each dimension
-                const gradients = [
-                  "bg-gradient-to-r from-purple-50 to-white border-l-4 border-purple-400",
-                  "bg-gradient-to-r from-blue-50 to-white border-l-4 border-blue-400",
-                  "bg-gradient-to-r from-teal-50 to-white border-l-4 border-teal-400",
-                  "bg-gradient-to-r from-indigo-50 to-white border-l-4 border-indigo-400"
-                ];
-                const titleColors = ["text-purple-700", "text-blue-700", "text-teal-700", "text-indigo-700"];
-                
-                return (
-                  <div key={dim.key} className={`p-4 rounded-lg shadow-sm ${gradients[index]}`}>
-                    <h3 className={`font-bold text-lg mb-2 ${titleColors[index]}`}>{dim.name}: {dim.type1} vs. {dim.type2}</h3>
-                    <p className="text-sm text-gray-700 whitespace-pre-line">{dimensionDetails[dim.key].split('\n')[1]}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Updated Types Section with Groups */} 
-          <div className="mb-6"> 
-            <h2 className="text-2xl font-semibold mb-8 text-gray-800 text-center">The 16 Crypto Personalities</h2>
-            {typeGroups.map((group, groupIndex) => {
-              // Create an array of header gradient classes for each group
-              const headerGradients = [
-                "bg-gradient-to-r from-purple-100 to-purple-50 border-purple-200", 
-                "bg-gradient-to-r from-blue-100 to-blue-50 border-blue-200",
-                "bg-gradient-to-r from-teal-100 to-teal-50 border-teal-200", 
-                "bg-gradient-to-r from-indigo-100 to-indigo-50 border-indigo-200"
-              ];
-              const headerTextColors = ["text-purple-700", "text-blue-700", "text-teal-700", "text-indigo-700"];
-              const cardGradients = [
-                "bg-gradient-to-br from-white to-purple-50 border-purple-100",
-                "bg-gradient-to-br from-white to-blue-50 border-blue-100",
-                "bg-gradient-to-br from-white to-teal-50 border-teal-100",
-                "bg-gradient-to-br from-white to-indigo-50 border-indigo-100"
-              ];
-              
-              return (
-                <div key={group.name} className="mb-10"> 
-                  <div className={`mb-6 px-4 py-4 ${headerGradients[groupIndex]} rounded-lg shadow-sm border`}> 
-                    <h3 className={`text-xl md:text-2xl font-bold text-center mb-2 ${headerTextColors[groupIndex]}`}>{group.name}</h3>
-                    <p className="text-sm italic text-center mb-3 text-gray-600">{group.combination}</p>
-                    <p className="text-base text-center text-gray-700 max-w-2xl mx-auto">{group.description}</p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-4"> 
-                    {group.codes.map(code => {
-                      const data = typeDescriptions[code];
-                      if (!data) return null; // Skip if data missing
-                      return (
-                        <div key={code} className={`p-4 ${cardGradients[groupIndex]} rounded-lg shadow-sm border text-left flex flex-col h-full`}> 
-                          <p className="font-bold text-lg mb-1 text-gray-800">{code} - {data.name}</p>
-                          <p className="text-xs italic text-gray-600 mb-2">{data.tagline}</p> 
-                          <p className="text-sm text-gray-700 flex-grow">{data.description}</p> 
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-         {/* Footer */} 
-         <footer className="w-full text-center text-xs text-gray-600 mt-auto pb-4 z-10">
-          <p className="mb-1">© 2025 Checkmate Foundation. All rights reserved</p>
-          <div className="flex justify-center gap-4">
-            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-800 underline">Terms & Conditions</a>
-            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-800 underline">Privacy Policy</a>
-          </div>
-        </footer>
-      </div>
-    );
-  }
-
-  // Home Screen (Check this *after* Types Page)
-  if (!showQuiz && !showResults) { 
-    return (
-      // Enhanced with a subtle gradient background and decorative elements
-      <div 
-        className="container mx-auto px-4 min-h-screen flex flex-col justify-center items-center bg-white text-gray-800 home-container relative overflow-hidden"
-      >
-        {/* Add decorative elements in the background */}
-        <div className="absolute top-0 right-0 w-1/3 h-1/3 bg-gradient-to-br from-purple-100 to-purple-200 rounded-bl-full opacity-50 z-0"></div>
-        <div className="absolute bottom-0 left-0 w-1/2 h-1/3 bg-gradient-to-tr from-blue-100 to-blue-200 rounded-tr-full opacity-50 z-0"></div>
-        <div className="absolute top-1/4 left-1/4 w-4 h-4 rounded-full bg-purple-300 opacity-30"></div>
-        <div className="absolute bottom-1/3 right-1/4 w-6 h-6 rounded-full bg-blue-300 opacity-40"></div>
-        <div className="absolute top-1/2 right-1/3 w-3 h-3 rounded-full bg-teal-300 opacity-30"></div>
-        
-        {/* Main Content Area */}
-        <div className="w-full max-w-xl text-center z-10 pt-16 relative">
-          {/* Add a subtle gradient card behind the main content */}
-          <div className="absolute inset-0 bg-gradient-to-b from-white via-gray-50 to-white rounded-xl -z-10"></div>
-          
-          {/* Title with gradient text to match other pages */}
-          <h1 className="text-4xl md:text-5xl font-bold mb-1 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text"> 
-            Crypto MBTI
-          </h1>
-          {/* Subtitle with darker text - reduced bottom margin */}
-          <p className="text-2xl md:text-3xl mb-4 text-gray-700"> 
-            Free Crypto Personality Test
-          </p>
-          {/* Replace tagline with new content about 4 key traits - reduced margins and padding */}
-          <div className="mb-6 max-w-md mx-auto text-left px-5 py-3 bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-sm">
-            <h3 className="text-lg font-semibold mb-2 text-gray-800 text-center">What Shapes Your Crypto Personality?</h3>
-            
-            <div className="space-y-2">
-              <div className="p-1.5 rounded-lg bg-gradient-to-r from-purple-50 to-white">
-                <p className="font-medium text-purple-700 text-sm">Risk Instinct:</p>
-                <p className="text-gray-600 text-sm">Are you a fearless Ape, or a calculated Builder?</p>
-              </div>
-              
-              <div className="p-1.5 rounded-lg bg-gradient-to-r from-blue-50 to-white">
-                <p className="font-medium text-blue-700 text-sm">Holding Style:</p>
-                <p className="text-gray-600 text-sm">Do you have Diamond Hands through the dips, or Paper Hands ready to exit?</p>
-              </div>
-              
-              <div className="p-1.5 rounded-lg bg-gradient-to-r from-teal-50 to-white">
-                <p className="font-medium text-teal-700 text-sm">Chain Loyalty:</p>
-                <p className="text-gray-600 text-sm">Are you a loyal Maxi, or an adventurous Omni explorer?</p>
-              </div>
-              
-              <div className="p-1.5 rounded-lg bg-gradient-to-r from-indigo-50 to-white">
-                <p className="font-medium text-indigo-700 text-sm">Asset Identity:</p>
-                <p className="text-gray-600 text-sm">Do you vibe with Tokens for gains, or NFTs for culture?</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Button Area - Reduced top margin */}
-          <div className="flex flex-col gap-4 items-center mt-8">
-            <button
-              onClick={() => startTest('lite')}
-              className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white px-8 py-3 rounded-full text-lg font-semibold transition-all w-64 shadow-md"
-            >
-              Lite Test (~2 mins)
-            </button>
-            <button
-              onClick={() => startTest('standard')}
-              className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white px-8 py-3 rounded-full text-lg font-semibold transition-all w-64 shadow-md"
-            >
-              Standard (~5 mins)
-            </button>
-            {/* Learn more button styled to match other secondary buttons */}
-            <button 
-              onClick={() => setShowTypesPage(true)}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm px-4 py-2 rounded-full transition-colors shadow-md focus:outline-none mt-4"
-            >
-              Learn about the 16 Personalities
-            </button>
-          </div>
-        </div>
-
-        {/* Footer - Updated text color for white background */}
-        <footer className="w-full text-center text-xs text-gray-600 mt-auto pb-4 z-10">
-          <p className="mb-1">© 2025 Checkmate Foundation. All rights reserved</p>
-          <div className="flex justify-center gap-4">
-            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-800 underline">Terms & Conditions</a>
-            <a href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" target="_blank" rel="noopener noreferrer" className="hover:text-gray-800 underline">Privacy Policy</a>
-          </div>
-        </footer>
-      </div>
-    );
-  }
-
-  // Result Screen
-  if (showResults && mbtiType) {
-    const result = typeDescriptions[mbtiType];
-    if (!result) {
-      console.error(`Description for type ${mbtiType} not found!`);
-      // Revert fallback to white bg
-      return <div className="min-h-screen flex items-center justify-center bg-white text-red-600">Error: Result description not found. Please retake the quiz.</div>; 
+  // --- New Function to Save Guest Results --- 
+  const saveGuestResult = async (resultToSave) => {
+    if (!session?.user || !userProfile?.id) {
+      console.error('[saveGuestResult] Cannot save, user not logged in or profile not loaded.');
+      return;
+    }
+    if (!resultToSave) {
+        console.warn('[saveGuestResult] No guest result data found to save.');
+        return;
     }
 
-    return (
-      // Revert background to white, default text to dark gray
-      <div className="container mx-auto px-4 pb-8 min-h-screen flex flex-col items-center justify-center text-gray-800 bg-white results-container">
-        <div className="w-full max-w-2xl text-center p-4 md:p-6">
-           {/* Updated title */} 
-           <h1 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text">
-              Your Crypto Personality
-           </h1>
-           <div className="result-card mb-6"> 
-             {/* Reordered elements: MBTI code first, then name, then image, then tagline */}
-             <h2 className="text-3xl font-bold mb-2 text-teal-600">
-               {mbtiType}
-             </h2>
-             <h3 className="text-2xl font-semibold mb-4 text-black">
-               {result.name}
-             </h3>
-             {result.imageUrl && (
-               <img 
-                 src={result.imageUrl} 
-                 alt={`${result.name} avatar`} 
-                 className="w-36 h-36 md:w-44 md:h-44 rounded-lg mx-auto mb-4 shadow-lg object-cover" 
-               />
-             )}
-             <p className="text-base italic mb-4 text-gray-600">
-               {result.tagline}
-             </p>
-             <p className="text-base leading-relaxed mb-4 text-gray-700 max-w-prose mx-auto">
-               {result.description}
-             </p>
-             {/* Dimensions Box - Light gray background */} 
-             <div className="bg-gray-100 p-4 rounded-md mb-4 text-left max-w-md mx-auto">
-               <h4 className="text-lg font-semibold mb-4 text-purple-600 text-center">Your Dimensions:</h4> {/* Darker Purple */} 
-               {dimensions.map(dim => {
-                   const percent = percentages[dim.key] ?? 50;
-                   const type1 = dim.type1;
-                   const type2 = dim.type2;
-                   const isType1Dominant = percent >= 50;
-                   const dominantType = isType1Dominant ? type1 : type2;
-                   const dominantPercent = isType1Dominant ? percent : 100 - percent;
-                   const sentence = isType1Dominant 
-                     ? dimensionSentences[dim.key]?.type1 
-                     : dimensionSentences[dim.key]?.type2;
-                   
-                   return (
-                     <div key={dim.key} className="mb-2 text-center"> 
-                       <p className="text-base text-gray-800 mb-1">{sentence || `${dominantType} Tendency`}</p> {/* Dark text */} 
-                       <p className="text-xs text-gray-600"> {/* Darker detail text */} 
-                         <span className="font-medium">{dim.name}</span> (
-                           {/* Darker teal for highlight */} 
-                           {isType1Dominant ? <strong className="font-semibold text-teal-600">{type1}</strong> : type1}
-                           {' vs '}
-                           {!isType1Dominant ? <strong className="font-semibold text-teal-600">{type2}</strong> : type2}
-                         ) - <span className='font-semibold'>{dominantPercent}%</span>
-                       </p>
-                     </div>
-                   );
-               })} 
-             </div>
-             {/* Note - Darker yellow */}
-             {questions.length > 0 && !allQuestionsAnswered && (
-               <p className="text-xs text-yellow-600 mt-4"> {/* Darker Yellow */} 
-                 Note: Results based on {answers.filter(a => a !== undefined).length} of {questions.length} questions. Retake for full accuracy.
-               </p>
-             )}
-           </div>
-           {/* Reverted Retake button style */} 
-           <div className="button-group mt-6 flex flex-col sm:flex-row justify-center gap-4">
-             <button onClick={handleShare} className="share-button bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200 shadow-md">Share on X</button>
-             <button onClick={handleRetakeQuiz} className="retake-button bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors duration-200 shadow-md">Take Test Again</button>
-           </div>
-        </div>
-      </div>
-    );
-  }
+    console.log('[saveGuestResult] Attempting to save guest result:', resultToSave);
+    try {
+      // Check if user already has results (important for referral points)
+      const { data: existingResults, error: resultsError } = await supabase
+        .from('results')
+        .select('id', { count: 'exact', head: true }) // More efficient count
+        .eq('user_id', userProfile.id);
+        
+      if (resultsError) throw resultsError;  
+        
+      const isFirstResult = existingResults.length === 0; // Check if count is 0
+      console.log(`[saveGuestResult] Is this the user's first result? ${isFirstResult}`);
 
-  // Question Screen
-  if (showQuiz && questions.length > 0) {
-     return (
-       // Changed background to white, default text to dark gray
-       <div className="container relative mx-auto px-4 py-8 min-h-screen flex flex-col items-center text-gray-800 bg-white quiz-container">
-         {/* Updated Back button color */} 
-         <button 
-           onClick={handleRetakeQuiz} 
-           className="absolute top-4 left-4 text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200 z-10 bg-transparent border-none p-2"
-           aria-label="Back to Home"
-         >
-           ← Back to Home
-         </button>
+      // Insert the result
+      const { error: insertError } = await supabase
+        .from('results')
+        .insert({
+          user_id: userProfile.id,
+          mbti_type: resultToSave.type,
+          percentages: resultToSave.percentages,
+          test_type: resultToSave.testType
+        });
+      if (insertError) throw insertError;
+      console.log('[saveGuestResult] Guest result saved successfully!');
 
-         {/* Title - Gradient should be fine */} 
-         <h1 className="text-3xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-500 text-transparent bg-clip-text leading-relaxed pb-2">
-            Crypto MBTI
-         </h1>
-         {/* Updated Progress Bar Track */} 
-         <ProgressBar current={answeredCount} total={questions.length} /> 
-         <div className="w-full max-w-3xl px-4 py-6 question-card"> 
-           {questionsOnCurrentPage.map((question, localIndex) => {
-             const globalIndex = startIndex + localIndex;
-             const isAnswered = answers[globalIndex] !== undefined;
-             const isActive = globalIndex === firstUnansweredIndex;
-             const isUpcoming = globalIndex > firstUnansweredIndex;
-             const isPreviousAnswered = globalIndex === firstUnansweredIndex - 1;
+      // Award referral points if applicable (on first result)
+      if (isFirstResult && userProfile.referred_by) {
+         console.log(`[saveGuestResult] User was referred by ${userProfile.referred_by}. Awarding point.`);
+         // ... (Referral point awarding logic - reuse or refactor from handleViewResults) ...
+         // For simplicity, let's copy/paste the referral logic for now
+         const { data: referrerData, error: referrerError } = await supabase
+            .from('users')
+            .select('id, points')
+            .eq('referral_code', userProfile.referred_by)
+            .single();
+            
+         if (referrerError && referrerError.code !== 'PGRST116') { // Ignore error if referrer not found (code PGRST116)
+             console.error(`[saveGuestResult] Error finding referrer: ${referrerError.message}`);
+             // Decide if we should throw or just warn
+         } else if (referrerData) {
+            const newPoints = (referrerData.points || 0) + 1;
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ points: newPoints })
+              .eq('id', referrerData.id);
+              
+            if (updateError) {
+                console.error(`[saveGuestResult] Error updating referrer points: ${updateError.message}`);
+            } else {
+                console.log(`[saveGuestResult] Referrer ${userProfile.referred_by} points updated to ${newPoints}`);
+            }
+         } else {
+            console.warn(`[saveGuestResult] Referrer with code ${userProfile.referred_by} not found.`);
+         }
+      }
 
-             let containerClasses = "mb-8 pb-4";
-             if (isUpcoming) {
-               containerClasses += " opacity-50 pointer-events-none"; 
-             } else if (isAnswered && !isActive && !isPreviousAnswered) {
-               containerClasses += " opacity-60 pointer-events-none"; 
-             } else if (isPreviousAnswered) {
-                containerClasses += " opacity-80"; 
-             }
-             const allowInteraction = isActive || isPreviousAnswered;
-             
-             return (
-               <div key={globalIndex} id={`question-${globalIndex}`} className={containerClasses}>
-                 {/* Updated Question text color */} 
-                 <h2 className={`question-text text-lg md:text-xl font-medium mb-4 text-center ${!allowInteraction && !isActive ? 'text-gray-400 opacity-70' : 'text-gray-900'}`}>{globalIndex + 1}. {question.text}</h2>
-                 <div className="likert-scale flex items-center justify-center gap-3 md:gap-4 my-4">
-                   {/* Updated Agree/Disagree text colors */} 
-                   <span className={`text-base font-medium ${allowInteraction ? 'text-green-600' : 'text-gray-400'}`}>Agree</span>
-                   {likertOptions.map(option => {
-                     const isSelected = answers[globalIndex] === option.value;
-                     let size = 'w-6 h-6 md:w-7 md:h-7';
-                     // --- Updated Likert Button Colors for White BG --- 
-                     let baseBgColor = allowInteraction ? 'bg-gray-100' : 'bg-gray-50'; 
-                     let hoverBgColor = allowInteraction ? 'hover:bg-gray-200' : '';
-                     let baseBorderColor = allowInteraction ? 'border-gray-300' : 'border-gray-200';
-                     let selectedBgColor = 'bg-purple-500'; 
-                     let selectedBorderColor = 'border-purple-500';
-                     let textColor = 'text-white'; // Default for selected
+      // IMPORTANT: Clear the guest data state after successful save
+      setGuestResultData(null);
+      console.log('[saveGuestResult] Cleared guestResultData state.');
 
-                     if (option.value === 0) {
-                       size = 'w-5 h-5 md:w-6 md:h-6';
-                       selectedBgColor = 'bg-gray-400'; 
-                       selectedBorderColor = 'border-gray-400';
-                       if (allowInteraction) hoverBgColor = 'hover:bg-gray-300'; 
-                     } else if (option.value > 0) {
-                       selectedBgColor = 'bg-green-500'; 
-                       selectedBorderColor = 'border-green-500';
-                       if(allowInteraction) {
-                          baseBorderColor = 'border-green-400'; // Lighter border for base
-                          hoverBgColor = 'hover:bg-green-100'; // Light hover
-                          baseBgColor = 'bg-green-50'; // Light base bg
-                       }
-                       if (option.value === 2) size = 'w-8 h-8 md:w-9 md:h-9';
-                     } else { // value < 0
-                       selectedBgColor = 'bg-purple-500';
-                       selectedBorderColor = 'border-purple-500';
-                       if(allowInteraction) {
-                         baseBorderColor = 'border-purple-400'; // Lighter border for base
-                         hoverBgColor = 'hover:bg-purple-100'; // Light hover
-                         baseBgColor = 'bg-purple-50'; // Light base bg
-                       }
-                       if (option.value === -2) size = 'w-8 h-8 md:w-9 md:h-9';
-                     }
-                     // --- End Updated Colors --- 
-                     
-                     return (
-                       <button
-                         key={option.value}
-                         title={option.label}
-                         disabled={!allowInteraction}
-                         className={`likert-circle-btn rounded-full border-2 transition-all duration-200 ease-in-out flex items-center justify-center 
-                           ${size} 
-                           ${isSelected ? selectedBorderColor : baseBorderColor} 
-                           ${isSelected ? selectedBgColor : baseBgColor} 
-                           ${!isSelected && allowInteraction ? hoverBgColor : ''} 
-                           ${isSelected ? 'ring-2 ring-offset-2 ring-offset-white ring-indigo-500' : ''} /* Adjusted ring offset color */ 
-                           ${!allowInteraction ? 'cursor-not-allowed' : 'cursor-pointer'} 
-                         `}
-                         onClick={() => handleAnswer(globalIndex, option.value)}
-                       >
-                         {isSelected && (
-                           <svg className={`w-4 h-4 ${textColor}`} fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" stroke="currentColor">
-                             <path d="M5 13l4 4L19 7"></path>
-                           </svg>
-                         )}
+    } catch (error) {
+      console.error('[saveGuestResult] Error saving guest result or awarding points:', error.message);
+      // Maybe notify user?
+    }
+  };
+
+  // --- New Copy Referral Link Function ---
+  const [copyButtonText, setCopyButtonText] = useState('Copy Referral Link'); // Updated default text
+  const handleCopyReferralLink = (referralCode) => {
+    if (!referralCode) return;
+    const link = `${window.location.origin}/?ref=${referralCode}`;
+    navigator.clipboard.writeText(link)
+      .then(() => {
+        setCopyButtonText('Copied!');
+        setTimeout(() => setCopyButtonText('Copy Referral Link'), 2000); // Updated reset text
+      })
+      .catch(err => {
+        console.error('Failed to copy referral link:', err);
+        setCopyButtonText('Error');
+        setTimeout(() => setCopyButtonText('Copy Referral Link'), 2000); // Updated reset text
+      });
+  };
+  // --- End New Function ---
+
+  // --- Fetch Previous Results Function ---
+  const fetchPreviousResults = async () => {
+    if (!session || !userProfile?.id) {
+      console.log("Cannot fetch results: User not logged in or profile ID missing.");
+      return;
+    }
+    console.log("Fetching previous results for user ID:", userProfile.id);
+    setLoadingPreviousResults(true);
+    try {
+      const { data, error } = await supabase
+        .from('results')
+        .select('id, created_at, mbti_type, test_type, percentages') // Fetch necessary data
+        .eq('user_id', userProfile.id)
+        .order('created_at', { ascending: false }); // Show newest first
+
+      if (error) throw error;
+      
+      console.log("Fetched previous results:", data);
+      setPreviousResults(data || []); 
+    } catch (error) {
+      console.error('Error fetching previous results:', error.message);
+      setPreviousResults([]); // Reset on error
+    } finally {
+      setLoadingPreviousResults(false);
+    }
+  };
+  // --- End Fetch Function ---
+
+  // --- Function to view a specific past result (reusing existing logic) ---
+  const viewPastResult = (result) => {
+    console.log("Viewing past result:", result);
+    setMbtiType(result.mbti_type);
+    setPercentages(result.percentages || {}); // Ensure percentages is an object
+    setTestType(result.test_type); // Set test type for context if needed
+    setShowHistoryPage(false); // Hide history page
+    setShowResults(true); // Show the results page
+    setShowQuiz(false); // Ensure quiz is hidden
+    window.history.pushState(null, '', `?results=${result.mbti_type}&history=${result.id}`); // Update URL
+  };
+  // --- End View Past Result Function ---
+
+  // --- Fetch Leaderboard Function ---
+  const fetchLeaderboard = async () => {
+    console.log("Fetching leaderboard...");
+    setLoadingLeaderboard(true);
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('username, points')
+        .not('points', 'is', null) // Only users with points
+        .order('points', { ascending: false })
+        .limit(20); // Limit to top 20 for example
+
+      if (error) throw error;
+
+      console.log("Fetched leaderboard data:", data);
+      setLeaderboardData(data || []);
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error.message);
+      setLeaderboardData([]); // Reset on error
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  };
+  // --- End Fetch Function ---
+
+  // --- Effect to close dropdown on outside click ---
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Check if the click is outside the dropdown trigger and the dropdown itself
+      const dropdownTrigger = document.getElementById('profile-dropdown-trigger');
+      const dropdownMenu = document.getElementById('profile-dropdown-menu');
+
+      if (
+        isProfileDropdownOpen &&
+        dropdownTrigger && !dropdownTrigger.contains(event.target) &&
+        dropdownMenu && !dropdownMenu.contains(event.target)
+      ) {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+
+    // Add listener if dropdown is open
+    if (isProfileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    // Cleanup listener
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileDropdownOpen]); // Re-run effect when dropdown state changes
+  // --- End Effect ---
+
+  // --- Render Logic --- 
+
+  // Add AuthModal render logic
+  const renderAuthModal = () => (
+    <AuthModal 
+      isOpen={showAuthModal} 
+      onClose={() => { 
+        console.log('[AuthModal onClose] Closing modal.');
+        setShowAuthModal(false); 
+        setPendingTestType(null); 
+        if (guestResultData && !session) {
+          setGuestResultData(null); 
+          console.log('[AuthModal onClose] Cleared guest data on manual close.');
+        }
+      }} 
+      onContinueAsGuest={handleContinueAsGuest} 
+      supabase={supabase}
+      setSession={setSession}
+      setLoadingProfile={setLoadingProfile}
+      fetchUserProfile={fetchUserProfile}
+      initialMode={authMode}
+      setAuthMode={setAuthMode}
+      guestResultData={guestResultData}
+      setGuestResultData={setGuestResultData}
+      initialReferralCode={initialReferralCode}
+    >
+      {authMode === 'login' ? (
+        <Login 
+          supabase={supabase} 
+          setSession={setSession}
+          setLoadingProfile={setLoadingProfile} 
+          setAuthMode={setAuthMode}
+        />
+      ) : (
+        <Register 
+          supabase={supabase} 
+          setSession={setSession}
+          setLoadingProfile={setLoadingProfile} 
+          setAuthMode={setAuthMode}
+          initialReferralCode={initialReferralCode}
+        />
+      )}
+    </AuthModal>
+  );
+
+  // --- Main Render --- 
+  // console.log('[App Render] showAuthModal state:', showAuthModal); // <-- REMOVED
+  
+  // Determine which main component to render based on state
+  // --- REMOVE mainContent LOGIC ---
+
+  // Base structure: ErrorBoundary > Container > Auth Area + Modal + Main Content
+  return (
+    <ErrorBoundary>
+      <div className="relative min-h-screen"> 
+        {/* Always Visible User/Auth Area */} 
+        <div className="absolute top-4 right-4 z-30">
+          {session ? ( 
+            // --- Logged-in user view (Dropdown) ---
+            <div className="relative">
+               {loadingProfile ? (
+                   // Simple loading indicator while profile loads
+                   <div className="flex items-center gap-3 p-2 bg-slate-800/50 rounded-full shadow border border-slate-700">
+                       <span className="text-xs text-slate-400 italic px-2">Loading...</span>
+                   </div>
+               ) : userProfile ? ( 
+                  // Profile loaded - Show Dropdown Trigger
+                  <button 
+                     id="profile-dropdown-trigger" // ID for outside click detection
+                     onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                     className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-full shadow border border-slate-700 text-slate-200 hover:bg-slate-700/70 transition duration-200"
+                  >
+                    <span className="text-sm font-medium px-1">Hi, {userProfile.username}!</span>
+                    {/* Dropdown Icon */}
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${isProfileDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+               ) : (
+                   // Profile failed to load - Show retry button
+                   <div className="flex items-center gap-3 p-2 bg-slate-800/50 rounded-full shadow border border-slate-700">
+                       <button onClick={() => fetchUserProfile(session.user.id)} disabled={loadingProfile} className="text-xs text-orange-400 hover:text-orange-300 bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-full transition duration-200">
+                         {loadingProfile ? 'Loading...' : 'Retry Profile'}
                        </button>
-                     );
-                   })}
-                   {/* Updated Agree/Disagree text colors */} 
-                   <span className={`text-base font-medium ${allowInteraction ? 'text-purple-600' : 'text-gray-400'}`}>Disagree</span>
+                   </div>
+               )}
+
+               {/* Dropdown Menu - Render if open and profile exists */}
+               {isProfileDropdownOpen && userProfile && (
+                  <div 
+                     id="profile-dropdown-menu" // ID for outside click detection
+                     className="absolute right-0 mt-2 w-56 origin-top-right bg-slate-700/90 backdrop-blur-md rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-slate-600/50"
+                  >
+                    <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="profile-dropdown-trigger">
+                      {/* Points & Copy Link */}
+                      <div className="px-4 py-2 text-sm text-slate-300 flex justify-between items-center border-b border-slate-600/50 mb-1" role="none">
+                        <span className="mr-2">Points: <span className="text-base font-bold text-teal-400">{userProfile.points ?? 0}</span></span>
+                        {/* Copy Referral Link Button (Moved Here) */}
+                        {userProfile.referral_code && (
+                          <button 
+                             onClick={() => { handleCopyReferralLink(userProfile.referral_code); }}
+                             className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 bg-slate-600/50 hover:bg-slate-600 px-2 py-1 rounded-full transition duration-200 whitespace-nowrap"
+                             title={`Copy referral link: ${window.location.origin}/?ref=${userProfile.referral_code}`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                             </svg>
+                             <span className="text-xs">{copyButtonText}</span> {/* Explicitly size text */}
+                          </button>
+                        )}
+                      </div>
+                      {/* History Button -> Results */}
+                      <button 
+                        onClick={() => { fetchPreviousResults(); setShowHistoryPage(true); setIsProfileDropdownOpen(false); }}
+                        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-600/70 transition duration-150" 
+                        role="menuitem"
+                      >
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />{/* Document Icon */}
+                         </svg>
+                         Results {/* Renamed */}
+                      </button>
+                      {/* Leaderboard Button -> Referrals */}
+                      <button 
+                        onClick={() => { fetchLeaderboard(); setShowLeaderboardPage(true); setIsProfileDropdownOpen(false); }}
+                        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-600/70 transition duration-150" 
+                        role="menuitem"
+                      >
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /> {/* Users Icon */}
+                         </svg>
+                         Referrals {/* Renamed */}
+                      </button>
+                      {/* Logout Button */}
+                       <button 
+                         onClick={() => { handleLogout(); setIsProfileDropdownOpen(false); }}
+                         className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-600/70 hover:text-red-300 transition duration-150 rounded-b-sm border-t border-slate-600/50 mt-1 pt-2" 
+                         role="menuitem"
+                       >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                             <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                          </svg>
+                          Logout
+                       </button>
+                    </div>
+                  </div>
+               )}
+            </div>
+          ) : ( 
+             // --- Logged-out user view ---
+             <button 
+               onClick={() => {
+                  setAuthMode('login'); // Default to login view
+                  setShowAuthModal(true);
+               }}
+               className="flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200 bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-full transition duration-200 shadow"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+               </svg>
+               Login / Register
+             </button>
+          )}
+        </div>
+        
+        {renderAuthModal()} {/* Always render the modal structure; visibility controlled by isOpen prop */} 
+
+        {/* Conditionally render the main content based on the page state */} 
+        {showLeaderboardPage ? (
+           // --- Leaderboard Page JSX ---
+           <div className="container mx-auto px-4 py-12 min-h-screen flex flex-col items-center bg-gradient-to-b from-slate-800 to-slate-900 text-white relative">
+             {/* Back Button */}
+             <button 
+               onClick={() => setShowLeaderboardPage(false)} 
+               className="absolute top-6 left-6 z-20 text-sm text-slate-400 hover:text-teal-300 transition duration-200 flex items-center gap-1"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+               </svg>
+               Back
+             </button>
+             
+             <h1 className="text-3xl md:text-4xl font-bold mb-8 mt-12 text-center text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">
+               Referral Leaderboard
+             </h1>
+ 
+             {/* User's Referral Info Section */}
+             {session && userProfile && (
+               <div className="w-full max-w-lg mb-6 bg-slate-800/30 border border-slate-700/50 rounded-lg p-4 text-center">
+                 <h3 className="text-lg font-semibold text-cyan-300 mb-3">Your Referral Stats</h3>
+                 <p className="text-sm text-slate-300 mb-1">Your Points: <span className="font-bold text-xl text-teal-400">{userProfile.points ?? 0}</span></p>
+                 {userProfile.referral_code ? (
+                   <div className="mt-3 flex flex-col items-center gap-2">
+                     <p className="text-xs text-slate-400">Share your link:</p>
+                     <button 
+                        onClick={() => handleCopyReferralLink(userProfile.referral_code)}
+                        className="flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200 bg-slate-700 hover:bg-slate-600/80 px-3 py-1.5 rounded-md transition duration-200 whitespace-nowrap shadow"
+                        title={`Copy referral link: ${window.location.origin}/?ref=${userProfile.referral_code}`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                           <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        {copyButtonText} 
+                     </button>
+                   </div>
+                 ) : (
+                   <p className="text-xs text-slate-500 mt-2">(Referral code not available)</p>
+                 )}
+                 <p className="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-600/50"> 
+                   How it works: Earn 1 point for each friend who signs up using your link and completes their first Crypto MBTI test.
+                 </p>
+               </div>
+             )}
+ 
+             {/* Ranked Leaderboard List */}
+             <div className="w-full max-w-lg bg-slate-800/50 border border-slate-700 rounded-xl shadow-lg backdrop-blur-sm p-6">
+               {loadingLeaderboard ? (
+                 <p className="text-center text-slate-400">Loading leaderboard...</p>
+               ) : leaderboardData.length === 0 ? (
+                 <p className="text-center text-slate-400">No users with referral points yet.</p>
+               ) : (
+                 <ol className="space-y-3">
+                   {leaderboardData.map((user, index) => (
+                     <li 
+                       key={user.username} // Assuming username is unique for key
+                       className="p-3 bg-slate-700/30 rounded-lg border border-slate-600/50 flex justify-between items-center"
+                     >
+                       <div className="flex items-center gap-3">
+                         <span className="text-sm font-semibold text-slate-400 w-6 text-right">{index + 1}.</span>
+                         <span className="font-medium text-slate-200">{user.username}</span>
+                       </div>
+                       <span className="font-bold text-lg text-teal-400">{user.points} pts</span>
+                     </li>
+                   ))}
+                 </ol>
+               )}
+             </div>
+             
+              {/* Footer */}
+              <footer className="w-full text-center text-xs text-slate-500 mt-auto pt-8 pb-4 z-10">
+                 © 2024 Checkmate Foundation
+              </footer>
+           </div>
+         ) : showHistoryPage ? (
+           // --- History Page JSX ---
+           <div className="container mx-auto px-4 py-12 min-h-screen flex flex-col items-center bg-gradient-to-b from-slate-800 to-slate-900 text-white relative">
+             {/* Back Button */}
+             <button 
+               onClick={() => setShowHistoryPage(false)} 
+               className="absolute top-6 left-6 z-20 text-sm text-slate-400 hover:text-teal-300 transition duration-200 flex items-center gap-1"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+               </svg>
+               Back
+             </button>
+             
+             <h1 className="text-3xl md:text-4xl font-bold mb-8 mt-12 text-center text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">
+               Your Test History
+             </h1>
+
+             <div className="w-full max-w-2xl bg-slate-800/50 border border-slate-700 rounded-xl shadow-lg backdrop-blur-sm p-6">
+               {loadingPreviousResults ? (
+                 <p className="text-center text-slate-400">Loading history...</p>
+               ) : previousResults.length === 0 ? (
+                 <p className="text-center text-slate-400">You haven't completed any tests yet.</p>
+               ) : (
+                 <ul className="space-y-4">
+                   {previousResults.map((result) => (
+                     <li 
+                       key={result.id}
+                       className="p-4 bg-slate-700/30 rounded-lg border border-slate-600/50 flex justify-between items-center hover:bg-slate-700/60 transition duration-200"
+                     >
+                       <div>
+                         <span className="font-bold text-lg text-white mr-3">{result.mbti_type}</span>
+                         <span className="text-sm text-slate-400 mr-3">({typeDescriptions[result.mbti_type]?.name || 'Unknown Type'})</span>
+                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${result.test_type === 'lite' ? 'bg-cyan-800/70 text-cyan-200' : 'bg-purple-800/70 text-purple-200'}`}>
+                           {result.test_type || 'standard'}
+                         </span>
+                       </div>
+                       <div className="text-right">
+                          <span className="text-xs text-slate-500 block mb-1">{new Date(result.created_at).toLocaleString()}</span>
+                          <button 
+                             onClick={() => viewPastResult(result)}
+                             className="text-xs text-teal-400 hover:text-teal-300 underline"
+                           >
+                             View Details
+                          </button>
+                       </div>
+                     </li>
+                   ))}
+                 </ul>
+               )}
+             </div>
+             
+              {/* Footer */}
+              <footer className="w-full text-center text-xs text-slate-500 mt-auto pt-8 pb-4 z-10">
+                 © 2024 Checkmate Foundation
+              </footer>
+           </div>
+         ) : showTypesPage ? (
+           // --- Types Page JSX ---
+           <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center bg-gradient-to-b from-slate-800 to-slate-900 text-white relative overflow-hidden">
+             {/* Decorative elements */}
+             <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-gradient-to-bl from-teal-500/10 to-transparent rounded-full opacity-30 z-0"></div>
+             <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-72 h-72 bg-gradient-to-tr from-cyan-600/10 to-transparent rounded-full opacity-30 z-0"></div>
+
+             {/* Back Button */}
+             <button 
+               onClick={() => setShowTypesPage(false)} 
+               className="absolute top-6 left-6 z-20 text-sm text-slate-400 hover:text-teal-300 transition duration-200 flex items-center gap-1"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+               </svg>
+               Back to Home
+             </button>
+
+             {/* Main Content Area */}
+             <div className="w-full max-w-5xl z-10 mt-16 mb-8 bg-slate-800/50 border border-slate-700 rounded-xl shadow-lg backdrop-blur-sm p-6 md:p-10">
+               <h1 className="text-3xl md:text-4xl font-bold mb-10 text-center text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">
+                 Understanding your Crypto Personality
+               </h1>
+
+               {/* Dimensions Section */}
+               <div className="mb-12 px-2 md:px-4">
+                 <h2 className="text-2xl font-semibold mb-6 text-center text-cyan-300">The Four Dimensions</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+                   {dimensions.map((dim, index) => (
+                     <div key={index} className="p-5 bg-slate-700/30 rounded-lg border border-slate-600/50">
+                       <h3 className="text-xl font-semibold mb-2 text-white flex items-center">
+                         {dim.emoji} <span className="ml-2">{dim.name}</span>
+                       </h3>
+                       <div className="flex justify-between text-sm mb-2">
+                         <span className="font-medium text-teal-400">{dim.type1}</span>
+                         <span className="font-medium text-cyan-400">{dim.type2}</span>
+                       </div>
+                       {/* Use dimensionSentences which IS defined */}
+                       <p className="text-sm text-slate-400">{dimensionSentences[dim.key]?.type1} vs {dimensionSentences[dim.key]?.type2}</p> 
+                     </div>
+                   ))}
                  </div>
                </div>
-             );
-           })}
-           {/* Updated Nav button styles */} 
-           <div className="navigation-buttons flex justify-between items-center mt-6">
-             {/* Updated Back button style */} 
-             <button onClick={handleBack} disabled={currentPageIndex === 0} className="nav-button px-5 py-2 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200">Back</button>
-             {/* Updated Page indicator text */} 
-             <p className="question-number text-sm text-gray-600">Page {currentPageIndex + 1} of {totalPages}</p>
-             {/* Kept Next button style */} 
-             <button 
-               onClick={handleNext} 
-               disabled={!areAllQuestionsOnPageAnswered()}
-               className="nav-button px-5 py-2 rounded-full bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-             >
-               {currentPageIndex === totalPages - 1 ? 'View Results' : 'Next'}
-             </button>
-           </div>
-         </div>
-       </div>
-     );
-  }
 
-  // Fallback
-  return <div className="min-h-screen flex items-center justify-center bg-white text-gray-600">Loading...</div>; // Updated fallback
+               {/* Types Section */}
+               <div className="mb-6">
+                 <h2 className="text-2xl font-semibold mb-8 text-center text-cyan-300">The 16 Crypto Personalities</h2>
+                  {/* TODO: Define or import `typeGroups` data to render the list of types */}
+                  {/* Example: Render type codes from typeDescriptions */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4">
+                    {Object.keys(typeDescriptions).sort().map(typeCode => (
+                       <div key={typeCode} className="p-4 bg-slate-700/40 rounded-lg border border-slate-600/60 text-center hover:bg-slate-700/60 transition duration-200 cursor-default">
+                          <p className="font-bold text-lg text-white">{typeCode}</p>
+                          <p className="text-sm text-slate-300">{typeDescriptions[typeCode]?.name}</p>
+                      </div>
+                    ))}
+                  </div>
+               </div>
+             </div>
+
+             {/* Footer */}
+             <footer className="w-full text-center text-xs text-slate-500 mt-auto pb-4 z-10">
+               © 2024 Checkmate Foundation | Explore the types
+             </footer>
+           </div>
+         ) : showResults && mbtiType ? (
+            // --- Result Screen JSX --- 
+            <div className="container mx-auto px-4 py-12 min-h-screen flex flex-col items-center bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-900 text-white relative">
+              {/* Subtle decorative background elements */}
+              <div className="absolute top-10 left-10 w-48 h-48 bg-teal-600/10 rounded-full filter blur-3xl opacity-50 z-0"></div>
+              <div className="absolute bottom-20 right-20 w-64 h-64 bg-cyan-500/10 rounded-full filter blur-3xl opacity-40 z-0"></div>
+              <div className="absolute inset-0 bg-grid-pattern opacity-5 z-0"></div> {/* Grid pattern */}
+
+              {/* Result Card */}
+              <div className="w-full max-w-2xl text-center p-6 md:p-8 bg-slate-800/60 border border-slate-700 rounded-2xl shadow-xl backdrop-blur-md z-10 relative overflow-hidden">
+                
+                <h1 className="text-3xl md:text-4xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">Your Crypto Personality</h1>
+                
+                {(() => { // Immediately invoked function expression (IIFE) to handle conditional logic cleanly
+                    const result = typeDescriptions[mbtiType]; 
+                    if (!result) {
+                      return <div className="min-h-[300px] flex items-center justify-center text-red-400">Error: Result description not found for type '{mbtiType}'. Please try again.</div>;
+                    }
+                    
+                    return (
+                      <>
+                        {/* Type and Name */}
+                        <div className="mb-6">
+                          <h2 className="text-5xl font-extrabold text-white tracking-tight mb-1 drop-shadow-lg">{mbtiType}</h2>
+                          <h3 className="text-2xl font-semibold text-teal-400 mb-3">{result.name}</h3>
+                          {/* Image (Optional) */}
+                          {result.image && (
+                              <img src={result.image} alt={result.name} className="w-32 h-32 mx-auto mb-4 rounded-full border-4 border-teal-500/30 shadow-lg" />
+                          )}
+                          <p className="text-slate-300 italic text-sm mb-5">"{result.tagline}"</p>
+                          <p className="text-slate-400 text-base leading-relaxed">{result.description}</p>
+                        </div>
+
+                        {/* Dimensions Section */}
+                        <div className="mt-8 mb-4 pt-6 border-t border-slate-700/50">
+                          <h4 className="text-xl font-semibold mb-5 text-cyan-300">Your Dimensional Breakdown</h4>
+                          <div className="space-y-5">
+                            {dimensions.map(dim => {
+                              const score = percentages[dim.key];
+                              // Handle cases where score might be undefined/null initially
+                              if (typeof score !== 'number') {
+                                return <div key={dim.key}>Loading score for {dim.name}...</div>; // Or some placeholder
+                              }
+                              const isType1Dominant = score >= 50;
+                              const dominantType = isType1Dominant ? dim.type1 : dim.type2;
+                              const dominantEmoji = isType1Dominant ? dim.emoji.split('/')[0] : dim.emoji.split('/')[1];
+                              const sentenceKey = isType1Dominant ? 'type1' : 'type2';
+                              const sentence = dimensionSentences[dim.key]?.[sentenceKey] || ''; // Get sentence
+
+                              return (
+                                <div key={dim.key} className="text-left">
+                                   <div className="flex justify-between items-center mb-1">
+                                      <span className="text-sm font-medium text-slate-300 flex items-center">
+                                         {dim.emoji} <span className="ml-2">{dim.name}: <span className="font-bold text-white">{dominantType}</span></span>
+                                      </span>
+                                      <span className={`text-sm font-semibold ${isType1Dominant ? 'text-teal-400' : 'text-cyan-400'}`}>
+                                        {isType1Dominant ? Math.round(score) : Math.round(100 - score)}% {/* Rounded score */}
+                                      </span>
+                                   </div>
+                                  <DimensionBar label="" score={score} />
+                                  <p className="text-xs text-slate-400 mt-1 pl-1">{sentence}</p> {/* Display sentence */}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Guest Prompt */}
+                        {!session && guestResultData && (
+                          <div className="mt-8 mb-6 p-5 bg-gradient-to-r from-teal-900/30 to-cyan-900/30 border border-teal-600/50 rounded-lg text-center shadow-inner">
+                            <p className="font-semibold text-teal-300 mb-2">Enjoy your results?</p>
+                            <p className="text-sm text-slate-300 mb-3">Create a free account to save your type, track changes, and get referral points!</p>
+                            <button 
+                              onClick={() => {
+                                 console.log("Prompting login from guest result view");
+                                 setAuthMode('register'); // Suggest register first
+                                 setShowAuthModal(true); 
+                                 // Guest data is already in state (guestResultData)
+                              }}
+                              className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-5 rounded-full text-sm transition duration-200 shadow hover:shadow-md"
+                            >
+                              Create Account to Save
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Referral Link Section on Results Page */}
+                        {session && userProfile && userProfile.referral_code && (
+                          <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
+                            <p className="text-sm text-slate-400 mb-2">Share your referral link to earn points!</p>
+                            <div className="flex justify-center items-center">
+                              {/* <span className="text-xs font-mono text-teal-300 truncate">{`${window.location.origin}/?ref=${userProfile.referral_code}`}</span> */}
+                              <button 
+                                 onClick={() => handleCopyReferralLink(userProfile.referral_code)}
+                                 className="flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200 bg-slate-700 hover:bg-slate-600/80 px-4 py-2 rounded-md transition duration-200 whitespace-nowrap shadow"
+                                 title={`Copy referral link: ${window.location.origin}/?ref=${userProfile.referral_code}`}
+                               >
+                                 {/* Copy Icon SVG */}
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                 </svg>
+                                 {copyButtonText}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Button Group */}
+                        <div className={`button-group flex flex-col sm:flex-row justify-center gap-4 ${!session && guestResultData ? 'mt-4' : 'mt-8'} pt-6 border-t border-slate-700/50`}>
+                          <button
+                            onClick={handleShare}
+                            className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold py-2 px-6 rounded-full shadow hover:shadow-lg transform hover:-translate-y-px transition duration-200 ease-in-out"
+                          >
+                            Share on X
+                          </button>
+                          <button
+                            onClick={handleRetakeQuiz}
+                            className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-semibold py-2 px-6 rounded-full shadow hover:shadow-lg transform hover:-translate-y-px transition duration-200 ease-in-out"
+                          >
+                            Take Test Again
+                          </button>
+                        </div>
+                      </>
+                    );
+                })()} {/* End IIFE */}
+              </div>
+
+              {/* Footer */}
+              <footer className="w-full text-center text-xs text-slate-500 mt-auto pt-8 pb-4 z-10">
+                 © 2024 Checkmate Foundation | <a href="https://checkmate.foundation" target="_blank" rel="noopener noreferrer" className="hover:text-teal-400">checkmate.foundation</a>
+              </footer>
+            </div>
+         ) : showQuiz && questions.length > 0 ? (
+            // --- Question Screen JSX ---
+            <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center bg-gradient-to-b from-slate-800 to-slate-900 text-white">
+               {/* Header & Progress Bar Wrapper - Make Sticky */}
+               <div className="w-full max-w-3xl sticky top-0 z-20 bg-slate-800/80 backdrop-blur-sm py-4 mb-6">
+                   {/* Header */}
+                   <div className="w-full flex justify-between items-center px-2 mb-4">
+                       <button onClick={handleRetakeQuiz} className="text-sm text-slate-400 hover:text-teal-300 transition duration-200 flex items-center gap-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                           Back to Start
+                       </button>
+                       <h1 className="text-xl md:text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">
+                           {testType === 'lite' ? 'Lite Test' : 'Standard (~5 mins)'}
+                       </h1>
+                       {/* Placeholder for potential profile icon/logout */}
+                       <div className="w-28 text-right"> {/* Adjusted width for balance */}
+                         {/* You could add user info here if needed, but it's also at top right */}
+                       </div> 
+                   </div>
+
+                   {/* Progress Bar */}
+                   <div className="w-full px-2">
+                      <ProgressBar current={answeredCount} total={questions.length} />
+                   </div>
+               </div>
+
+               {/* Questions Container - Adjust margin-top if needed due to sticky header height */}
+               <div className="w-full max-w-3xl px-4 py-6 bg-slate-800/50 border border-slate-700 rounded-xl shadow-lg backdrop-blur-sm mt-0"> {/* Removed explicit mb-8 from progress bar div */} 
+                 {questionsOnCurrentPage.map((question, localIndex) => {
+                   const globalIndex = startIndex + localIndex;
+                   const isActive = globalIndex === firstUnansweredIndex;
+                   const isAnswered = answers[globalIndex] !== undefined;
+                   const cardId = `question-${globalIndex}`;
+
+                   return (
+                     <div
+                       key={globalIndex}
+                       id={cardId}
+                       className={`mb-8 p-5 rounded-lg transition-all duration-300 ease-in-out border 
+                                   ${isActive ? 'border-teal-500/50 bg-slate-700/40 shadow-md scale-[1.01]' : 'border-transparent'} 
+                                   ${isAnswered ? 'opacity-70' : 'opacity-100'}
+                                   scroll-mt-28`} // Increased scroll-margin-top from 8 to 28
+                     >
+                       <p className={`text-lg font-medium mb-5 ${isActive ? 'text-teal-300' : 'text-slate-300'}`}>
+                         {/* Question numbering: globalIndex + 1 */}
+                         <span className="font-semibold mr-2">{globalIndex + 1}.</span>{question.text}
+                       </p>
+                       <div className="flex flex-col md:flex-row justify-center items-center space-y-3 md:space-y-0 md:space-x-4">
+                         {likertOptions.map((option, index) => {
+                           const isSelected = answers[globalIndex] === option.value;
+                           return (
+                             <button
+                               key={index}
+                               onClick={() => handleAnswer(globalIndex, option.value)}
+                               className={`px-4 py-2 rounded-full border text-sm font-medium transition duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-cyan-500 min-w-[100px] text-center
+                                           ${isSelected ? option.selectedClasses : `${option.defaultClasses} ${option.hoverClasses}`}
+                                           `}
+                             >
+                               {option.label}
+                             </button>
+                           );
+                         })}
+                       </div>
+                     </div>
+                   );
+                 })}
+
+                 {/* Navigation Buttons */}
+                 <div className="navigation-buttons flex justify-between items-center mt-6 border-t border-slate-700/50 pt-6">
+                   <button
+                     onClick={handleBack}
+                     disabled={currentPageIndex === 0}
+                     className="px-6 py-2 rounded-full border border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition duration-200"
+                   >
+                     Back
+                   </button>
+                   <p className="question-number text-sm text-slate-400">
+                      Page {currentPageIndex + 1} of {totalPages}
+                   </p>
+                   <button
+                     onClick={handleNext}
+                     disabled={!areAllQuestionsOnPageAnswered()}
+                     className="px-6 py-2 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-semibold shadow disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none transition duration-200 transform hover:scale-105"
+                   >
+                     {currentPageIndex === totalPages - 1 ? 'View Results' : 'Next'}
+                   </button>
+                 </div>
+               </div>
+
+               {/* Footer */}
+               <footer className="w-full text-center text-xs text-slate-500 mt-auto pt-8 pb-4">
+                 © 2024 Checkmate Foundation
+               </footer>
+            </div>
+         ) : (
+            // --- Home Screen JSX (Default if no other state matches) ---
+            <div className="container mx-auto px-4 min-h-screen flex flex-col bg-gradient-to-b from-slate-800 to-slate-900 text-white relative overflow-hidden">
+               <div className="flex-1 flex flex-col">
+                 <div className="w-full max-w-xl mx-auto text-center z-10 pt-8 mb-auto relative">
+                   <h1 className="text-4xl md:text-5xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">Crypto MBTI</h1>
+                   <p className="text-2xl md:text-3xl mb-4 text-slate-300 drop-shadow-sm">Free Crypto Personality Test</p>
+                   <div className="mb-6 max-w-md mx-auto text-slate-400 text-sm space-y-4 text-left pl-4"> 
+                     <p className="text-lg font-medium text-teal-300 mb-2">What Shapes Your Crypto Personality?</p>
+                     
+                     <div className="space-y-1">
+                       <p className="font-medium text-cyan-300">Risk Instinct:</p>
+                       <p>Are you a fearless <span className="font-semibold text-teal-400">Ape</span>, or a calculated <span className="font-semibold text-cyan-400">Builder</span>?</p>
+                     </div>
+
+                     <div className="space-y-1">
+                       <p className="font-medium text-cyan-300">Holding Style:</p>
+                       <p>Do you have <span className="font-semibold text-teal-400">Diamond Hands</span> through the dips, or <span className="font-semibold text-cyan-400">Paper Hands</span> ready to exit?</p>
+                     </div>
+
+                     <div className="space-y-1">
+                       <p className="font-medium text-cyan-300">Chain Loyalty:</p>
+                       <p>Are you a loyal <span className="font-semibold text-teal-400">Maxi</span>, or an adventurous <span className="font-semibold text-cyan-400">Omni</span> explorer?</p>
+                     </div>
+
+                     <div className="space-y-1">
+                       <p className="font-medium text-cyan-300">Asset Identity:</p>
+                       <p>Do you vibe with <span className="font-semibold text-teal-400">Tokens</span> for gains, or <span className="font-semibold text-cyan-400">NFTs</span> for culture?</p>
+                     </div>
+                   </div>
+
+                   <div className="flex flex-col gap-4 items-center mt-8">
+                     <button
+                       onClick={() => startTestFlow('lite')}
+                       className="w-64 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition duration-300 ease-in-out text-lg"
+                     >
+                       Lite Test (~2 mins)
+                     </button>
+                     <button
+                       onClick={() => startTestFlow('standard')}
+                       className="w-64 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition duration-300 ease-in-out text-lg"
+                     >
+                       Standard (~5 mins)
+                     </button>
+                     <button
+                       onClick={() => setShowTypesPage(true)}
+                       className="mt-4 text-sm text-slate-400 hover:text-teal-300 transition duration-200 underline"
+                     >
+                       Learn about the 16 Personalities
+                     </button>
+                   </div>
+                 </div>
+
+                 <footer className="w-full text-center text-xs text-slate-500 py-4 z-10">
+                   <p className="mb-2">© 2025 Checkmate Foundation. All rights reserved</p>
+                   <div className="flex justify-center items-center gap-4">
+                     <a 
+                       href="https://checkmate.foundation/" 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       className="hover:text-teal-400 transition-colors"
+                     >
+                       Checkmate Foundation
+                     </a>
+                     <a 
+                       href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Terms%20of%20Use%20(D240513).pdf" 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       className="hover:text-teal-400 transition-colors"
+                     >
+                       Terms & Conditions
+                     </a>
+                     <a 
+                       href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       className="hover:text-teal-400 transition-colors"
+                     >
+                       Privacy Policy
+                     </a>
+                   </div>
+                 </footer>
+               </div>
+            </div>
+         ) }
+        </div>
+      </ErrorBoundary>
+    );
 }
