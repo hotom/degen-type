@@ -6,13 +6,13 @@ export default function AuthModal({ isOpen, onClose, children, onContinueAsGuest
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white p-8 rounded-lg shadow-xl relative max-w-md w-full mx-4">
+      <div className="bg-slate-800 p-8 rounded-lg shadow-xl relative max-w-md w-full mx-4 border border-slate-700">
         <button 
           onClick={onClose} 
-          className="absolute top-2 right-3 text-gray-500 hover:text-gray-800 text-2xl font-bold"
+          className="absolute top-2 right-3 text-slate-400 hover:text-slate-200 text-2xl font-bold"
           aria-label="Close"
         >
-          &times; {/* Multiplication sign as close icon */}
+          &times;
         </button>
         
         {/* Login/Register Form */} 
@@ -22,15 +22,15 @@ export default function AuthModal({ isOpen, onClose, children, onContinueAsGuest
         
         {/* Divider */} 
         <div className="relative flex items-center mb-4">
-          <div className="flex-grow border-t border-gray-300"></div>
-          <span className="flex-shrink mx-4 text-gray-500 text-sm">OR</span>
-          <div className="flex-grow border-t border-gray-300"></div>
+          <div className="flex-grow border-t border-slate-600"></div>
+          <span className="flex-shrink mx-4 text-slate-400 text-sm">OR</span>
+          <div className="flex-grow border-t border-slate-600"></div>
         </div>
 
         {/* Continue as Guest Button */} 
         <button 
           onClick={onContinueAsGuest} 
-          className="w-full py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          className="w-full py-2 px-4 border border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-200 bg-slate-700 hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-cyan-500"
         >
           Continue as Guest
         </button>

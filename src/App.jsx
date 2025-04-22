@@ -93,11 +93,15 @@ export default function App() {
   const [showHistoryPage, setShowHistoryPage] = useState(false); // To toggle history view
   // --- State for Profile Dropdown ---
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isReferralCopied, setIsReferralCopied] = useState(false);
   // --- State for Leaderboard ---
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [showLeaderboardPage, setShowLeaderboardPage] = useState(false);
   // --- End State ---
+  const [emailConfirmed, setEmailConfirmed] = useState(false); // New state for email confirmation
+  const [loginSuccess, setLoginSuccess] = useState(false); // Add this new state
+  const [logoutSuccess, setLogoutSuccess] = useState(false); // Add this new state
 
   const dimensions = [
     { key: 'AB', name: 'Risk', type1: 'Ape', type2: 'Builder', emoji: '🦍/👷' },
@@ -132,6 +136,84 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log("Auth event:", _event, session);
       setSession(session); // Set session immediately
+
+      // Check for email confirmation
+      if (_event === 'SIGNED_IN' && session?.user?.email_confirmed_at) {
+        // Check if this is a new confirmation by comparing timestamps
+        const confirmationTime = new Date(session.user.email_confirmed_at).getTime();
+        const now = new Date().getTime();
+        const isNewConfirmation = (now - confirmationTime) < 5000; // Within last 5 seconds
+        
+        if (isNewConfirmation) {
+          setEmailConfirmed(true);
+          // Clear confirmation message after 4 seconds
+          setTimeout(() => setEmailConfirmed(false), 4000);
+          
+          // Create user record after email confirmation
+          try {
+            const { data: existingUser } = await supabase
+              .from('users')
+              .select('id')
+              .eq('auth_user_id', session.user.id)
+              .single();
+
+            if (!existingUser) {
+              // Generate a referral code
+              const generatedCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+              
+              // Log metadata for debugging
+              console.log('Creating user record with metadata:', {
+                auth_user_id: session.user.id,
+                username: session.user.user_metadata.username,
+                referred_by: session.user.user_metadata.referred_by,
+                full_metadata: session.user.user_metadata
+              });
+
+              // Create the user record
+              const { error: insertError } = await supabase
+                .from('users')
+                .insert({
+                  auth_user_id: session.user.id,
+                  username: session.user.user_metadata.username,
+                  referral_code: generatedCode,
+                  referred_by: session.user.user_metadata.referred_by || null,
+                  points: 0
+                });
+
+              if (insertError) {
+                console.error('Error creating user record:', insertError.message);
+              } else {
+                console.log('User record created successfully:', {
+                  username: session.user.user_metadata.username,
+                  referred_by: session.user.user_metadata.referred_by,
+                  generatedCode,
+                  fullMetadata: session.user.user_metadata
+                });
+              }
+            }
+
+            // If we have guest result data, save it now
+            if (guestResultData) {
+              console.log('[Email Confirmed] Saving guest result data...');
+              await saveGuestResult(guestResultData);
+              // Clear guest data after successful save
+              setGuestResultData(null);
+            }
+          } catch (error) {
+            console.error('Error handling email confirmation:', error.message);
+          }
+        }
+      } else if (_event === 'SIGNED_IN') {
+        // Show login success message for any sign in that's not an email confirmation
+        setLoginSuccess(true);
+        // Clear success message after 4 seconds
+        setTimeout(() => setLoginSuccess(false), 4000);
+      } else if (_event === 'SIGNED_OUT') {
+        // Show logout success message
+        setLogoutSuccess(true);
+        // Clear success message after 4 seconds
+        setTimeout(() => setLogoutSuccess(false), 4000);
+      }
 
       if (session?.user) {
         // --- Add Delay --- 
@@ -170,8 +252,8 @@ export default function App() {
       }
 
       // --- Handle initial URL params ONCE --- 
-      const urlParams = new URLSearchParams(window.location.search);
-      const resultsParam = urlParams.get('results');
+    const urlParams = new URLSearchParams(window.location.search);
+    const resultsParam = urlParams.get('results');
       const refParam = urlParams.get('ref'); // Get ref code
 
       if (refParam) {
@@ -180,8 +262,8 @@ export default function App() {
       }
 
       if (resultsParam && initialQuestions.length > 0) {
-        setMbtiType(resultsParam);
-        setShowResults(true);
+      setMbtiType(resultsParam);
+      setShowResults(true);
         setShowQuiz(false);
       } 
       // We don't need the history replace state logic here anymore as URL changes during quiz/results naturally
@@ -210,6 +292,16 @@ export default function App() {
       if (guestResultData && userProfile) { // Make sure profile is loaded before saving
         console.log('[Effect] Detected guest data and logged-in user, attempting to save...');
         saveGuestResult(guestResultData);
+        
+        // After saving guest result, show the results
+        if (guestResultData.type) {
+          setMbtiType(guestResultData.type);
+          setPercentages(guestResultData.percentages);
+          setShowResults(true);
+          setShowQuiz(false);
+          setAllQuestionsAnswered(true);
+          window.history.pushState(null, '', `?results=${guestResultData.type}`);
+        }
       } 
       // --- End Check --- 
       
@@ -296,7 +388,7 @@ export default function App() {
     setCurrentPageIndex(0);
     setQuestionsPerPage(qpp);
     setShowQuiz(true);
-    setShowResults(false);
+        setShowResults(false);
     setMbtiType(null);
     setPercentages({});
     window.history.pushState(null, '', `?test=${type}&page=1`);
@@ -304,31 +396,12 @@ export default function App() {
 
   // --- Start Test Flow (Handles Auth Check) ---
   const startTestFlow = (type) => {
-    console.log(`[startTestFlow] Function called with type: ${type}`);
-    console.log('[startTestFlow] Current session state:', session);
-    console.log('[startTestFlow] Current userProfile state:', userProfile);
-    console.log('[startTestFlow] Current showAuthModal state:', showAuthModal);
-    
     if (!type) {
       console.error('[startTestFlow] No test type provided');
       return;
     }
-
-    if (session?.user) {
-      if (userProfile) {
-        console.log('[startTestFlow] User logged in and profile loaded, starting test directly.');
-        initiateTest(type);
-      } else {
-        console.log('[startTestFlow] User logged in but profile not loaded yet, setting pending type.');
-        setPendingTestType(type);
-      }
-    } else {
-      console.log('[startTestFlow] User not logged in, showing auth modal.');
-      setPendingTestType(type);
-      setAuthMode('login');
-      setShowAuthModal(true);
-      console.log('[startTestFlow] Auth modal should now be visible.');
-    }
+    // Always initiate the test directly without showing the login modal
+    initiateTest(type);
   };
 
   const calculateScores = () => {
@@ -340,8 +413,8 @@ export default function App() {
     const newAnswers = [...answers];
     if (globalIndex >= 0 && globalIndex < questions.length) {
       newAnswers[globalIndex] = value;
-      setAnswers(newAnswers);
-      
+    setAnswers(newAnswers);
+    
       // --- Scroll to next question IF it's on the same page --- 
       // /* // <-- REMOVE THIS LINE
       const nextGlobalIndex = globalIndex + 1;
@@ -350,7 +423,7 @@ export default function App() {
         const nextQuestionElement = document.getElementById(`question-${nextGlobalIndex}`);
         if (nextQuestionElement) {
           // Use setTimeout to allow state update before scrolling
-          setTimeout(() => {
+    setTimeout(() => {
             nextQuestionElement.scrollIntoView({ behavior: 'smooth', block: 'start' }); 
           }, 100); 
         }
@@ -359,7 +432,7 @@ export default function App() {
       // */ // <-- REMOVE THIS LINE
       // --- End scroll logic ---
 
-    } else {
+      } else {
       console.error("Invalid globalIndex in handleAnswer:", globalIndex);
     }
   };
@@ -379,7 +452,7 @@ export default function App() {
       if (currentPageIndex < totalPages - 1) {
         setCurrentPageIndex(currentPageIndex + 1);
         window.history.pushState(null, '', `?test=${testType}&page=${currentPageIndex + 2}`); // Optional URL update
-      } else {
+    } else {
         // This is the last page, trigger results view
         handleViewResults(true);
       }
@@ -537,10 +610,16 @@ export default function App() {
         return `${dim.emoji} ${dominantType}: ${dominantPercent}%`;
     }).join('\n');
 
-    // Use window.location.href to get the full results URL
-    const resultUrl = window.location.href; 
+    // Build dynamic URL with referral code if available
+    let resultUrl = window.location.origin;
+    // Only add referral code if user is logged in and has one
+    if (session && userProfile?.referral_code) {
+        resultUrl += `/?ref=${userProfile.referral_code}`;
+    } else {
+        resultUrl += '/';
+    }
 
-    const shareText = `My Crypto MBTI type is ${result.name} (${mbtiType})! 🚀\n\n${breakdown}\n\nFind yours: ${resultUrl}\n\n@CheckmateFDN #CryptoMBTI`;
+    const shareText = `My Crypto Personality type is ${result.name} (${mbtiType})! 🚀\n\n${breakdown}\n\nFind yours: ${resultUrl}\n\n@CheckmateFDN #CryptoMBTI #CryptoPersonality`;
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
     window.open(twitterUrl, '_blank');
   };
@@ -551,10 +630,28 @@ export default function App() {
     if (error) {
       console.error('Error logging out:', error.message);
     } else {
-      // State updates (session, userProfile) are handled by the onAuthStateChange listener
+      // Reset all states to initial values
+      setSession(null);
+      setUserProfile(null);
+      setShowResults(false);
+      setShowQuiz(false);
+      setShowHistoryPage(false);
+      setShowLeaderboardPage(false);
+      setShowTypesPage(false);
+      setMbtiType(null);
+      setPercentages({});
+      setGuestResultData(null);
+      setTestType(null);
+      setQuestions([]);
+      setAnswers([]);
+      setCurrentPageIndex(0);
+      setQuestionsPerPage(0);
+      setAllQuestionsAnswered(false);
+      
+      // Clear URL parameters
+      window.history.pushState(null, '', window.location.pathname);
+      
       console.log('Logged out successfully');
-      // Optionally redirect to home or clear results
-      handleRetakeQuiz(); // Use retake logic to reset state
     }
   };
 
@@ -585,14 +682,14 @@ export default function App() {
     console.log('[saveGuestResult] Attempting to save guest result:', resultToSave);
     try {
       // Check if user already has results (important for referral points)
-      const { data: existingResults, error: resultsError } = await supabase
+      const { error: resultsError, count } = await supabase
         .from('results')
         .select('id', { count: 'exact', head: true }) // More efficient count
         .eq('user_id', userProfile.id);
         
       if (resultsError) throw resultsError;  
         
-      const isFirstResult = existingResults.length === 0; // Check if count is 0
+      const isFirstResult = count === 0; // Check if this is the first result
       console.log(`[saveGuestResult] Is this the user's first result? ${isFirstResult}`);
 
       // Insert the result
@@ -610,8 +707,6 @@ export default function App() {
       // Award referral points if applicable (on first result)
       if (isFirstResult && userProfile.referred_by) {
          console.log(`[saveGuestResult] User was referred by ${userProfile.referred_by}. Awarding point.`);
-         // ... (Referral point awarding logic - reuse or refactor from handleViewResults) ...
-         // For simplicity, let's copy/paste the referral logic for now
          const { data: referrerData, error: referrerError } = await supabase
             .from('users')
             .select('id, points')
@@ -620,7 +715,6 @@ export default function App() {
             
          if (referrerError && referrerError.code !== 'PGRST116') { // Ignore error if referrer not found (code PGRST116)
              console.error(`[saveGuestResult] Error finding referrer: ${referrerError.message}`);
-             // Decide if we should throw or just warn
          } else if (referrerData) {
             const newPoints = (referrerData.points || 0) + 1;
             const { error: updateError } = await supabase
@@ -638,13 +732,13 @@ export default function App() {
          }
       }
 
-      // IMPORTANT: Clear the guest data state after successful save
+      // Only clear guest data after successful save
       setGuestResultData(null);
-      console.log('[saveGuestResult] Cleared guestResultData state.');
+      console.log('[saveGuestResult] Cleared guestResultData state after successful save.');
 
     } catch (error) {
       console.error('[saveGuestResult] Error saving guest result or awarding points:', error.message);
-      // Maybe notify user?
+      // Don't clear guest data on error
     }
   };
 
@@ -770,10 +864,7 @@ export default function App() {
         console.log('[AuthModal onClose] Closing modal.');
         setShowAuthModal(false); 
         setPendingTestType(null); 
-        if (guestResultData && !session) {
-          setGuestResultData(null); 
-          console.log('[AuthModal onClose] Cleared guest data on manual close.');
-        }
+        // Remove the line that clears guestResultData
       }} 
       onContinueAsGuest={handleContinueAsGuest} 
       supabase={supabase}
@@ -812,9 +903,19 @@ export default function App() {
   // --- REMOVE mainContent LOGIC ---
 
   // Base structure: ErrorBoundary > Container > Auth Area + Modal + Main Content
-  return (
+    return (
     <ErrorBoundary>
       <div className="relative min-h-screen"> 
+        {/* Success Messages Overlay */}
+        {emailConfirmed && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+            <div className="p-4 bg-gradient-to-r from-teal-900/30 to-cyan-900/30 border border-teal-600/50 rounded-lg text-center shadow-inner backdrop-blur-sm">
+              <p className="text-teal-300 font-semibold mb-2">Account Confirmed! 🎉</p>
+              <p className="text-sm text-slate-300">Your account has been successfully verified.</p>
+            </div>
+          </div>
+        )}
+
         {/* Always Visible User/Auth Area */} 
         <div className="absolute top-4 right-4 z-30">
           {session ? ( 
@@ -824,7 +925,7 @@ export default function App() {
                    // Simple loading indicator while profile loads
                    <div className="flex items-center gap-3 p-2 bg-slate-800/50 rounded-full shadow border border-slate-700">
                        <span className="text-xs text-slate-400 italic px-2">Loading...</span>
-                   </div>
+          </div>
                ) : userProfile ? ( 
                   // Profile loaded - Show Dropdown Trigger
                   <button 
@@ -844,7 +945,7 @@ export default function App() {
                        <button onClick={() => fetchUserProfile(session.user.id)} disabled={loadingProfile} className="text-xs text-orange-400 hover:text-orange-300 bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-full transition duration-200">
                          {loadingProfile ? 'Loading...' : 'Retry Profile'}
                        </button>
-                   </div>
+        </div>
                )}
 
                {/* Dropdown Menu - Render if open and profile exists */}
@@ -854,44 +955,27 @@ export default function App() {
                      className="absolute right-0 mt-2 w-56 origin-top-right bg-slate-700/90 backdrop-blur-md rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-slate-600/50"
                   >
                     <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="profile-dropdown-trigger">
-                      {/* Points & Copy Link */}
-                      <div className="px-4 py-2 text-sm text-slate-300 flex justify-between items-center border-b border-slate-600/50 mb-1" role="none">
-                        <span className="mr-2">Points: <span className="text-base font-bold text-teal-400">{userProfile.points ?? 0}</span></span>
-                        {/* Copy Referral Link Button (Moved Here) */}
-                        {userProfile.referral_code && (
-                          <button 
-                             onClick={() => { handleCopyReferralLink(userProfile.referral_code); }}
-                             className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 bg-slate-600/50 hover:bg-slate-600 px-2 py-1 rounded-full transition duration-200 whitespace-nowrap"
-                             title={`Copy referral link: ${window.location.origin}/?ref=${userProfile.referral_code}`}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                             </svg>
-                             <span className="text-xs">{copyButtonText}</span> {/* Explicitly size text */}
-                          </button>
-                        )}
-                      </div>
-                      {/* History Button -> Results */}
+                      {/* Results Button */}
                       <button 
-                        onClick={() => { fetchPreviousResults(); setShowHistoryPage(true); setIsProfileDropdownOpen(false); }}
+                        onClick={() => { fetchPreviousResults(); setShowHistoryPage(true); setShowLeaderboardPage(false); setIsProfileDropdownOpen(false); }}
                         className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-600/70 transition duration-150" 
                         role="menuitem"
                       >
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />{/* Document Icon */}
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                          </svg>
-                         Results {/* Renamed */}
+                         Results
                       </button>
-                      {/* Leaderboard Button -> Referrals */}
+                      {/* Referrals Button */}
                       <button 
-                        onClick={() => { fetchLeaderboard(); setShowLeaderboardPage(true); setIsProfileDropdownOpen(false); }}
+                        onClick={() => { fetchLeaderboard(); setShowLeaderboardPage(true); setShowHistoryPage(false); setIsProfileDropdownOpen(false); }}
                         className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-600/70 transition duration-150" 
                         role="menuitem"
                       >
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /> {/* Users Icon */}
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                          </svg>
-                         Referrals {/* Renamed */}
+                         Referrals
                       </button>
                       {/* Logout Button */}
                        <button 
@@ -904,13 +988,13 @@ export default function App() {
                           </svg>
                           Logout
                        </button>
-                    </div>
+      </div>
                   </div>
                )}
             </div>
           ) : ( 
              // --- Logged-out user view ---
-             <button 
+            <button 
                onClick={() => {
                   setAuthMode('login'); // Default to login view
                   setShowAuthModal(true);
@@ -921,7 +1005,7 @@ export default function App() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                </svg>
                Login / Register
-             </button>
+            </button>
           )}
         </div>
         
@@ -944,8 +1028,8 @@ export default function App() {
              
              <h1 className="text-3xl md:text-4xl font-bold mb-8 mt-12 text-center text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">
                Referral Leaderboard
-             </h1>
- 
+            </h1>
+            
              {/* User's Referral Info Section */}
              {session && userProfile && (
                <div className="w-full max-w-lg mb-6 bg-slate-800/30 border border-slate-700/50 rounded-lg p-4 text-center">
@@ -954,24 +1038,27 @@ export default function App() {
                  {userProfile.referral_code ? (
                    <div className="mt-3 flex flex-col items-center gap-2">
                      <p className="text-xs text-slate-400">Share your link:</p>
-                     <button 
-                        onClick={() => handleCopyReferralLink(userProfile.referral_code)}
-                        className="flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200 bg-slate-700 hover:bg-slate-600/80 px-3 py-1.5 rounded-md transition duration-200 whitespace-nowrap shadow"
-                        title={`Copy referral link: ${window.location.origin}/?ref=${userProfile.referral_code}`}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                        {copyButtonText} 
-                     </button>
+                     <div className="flex items-center gap-2">
+                       <span className="text-sm text-slate-300">Referral Code: <span className="font-mono text-teal-400">{userProfile.referral_code}</span></span>
+                       <button 
+                          onClick={() => handleCopyReferralLink(userProfile.referral_code)}
+                          className="flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200 bg-slate-700 hover:bg-slate-600/80 px-3 py-1.5 rounded-md transition duration-200 whitespace-nowrap shadow"
+                          title={`Copy referral link: ${window.location.origin}/?ref=${userProfile.referral_code}`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                             <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          {copyButtonText} 
+                       </button>
+                     </div>
                    </div>
                  ) : (
                    <p className="text-xs text-slate-500 mt-2">(Referral code not available)</p>
                  )}
                  <p className="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-600/50"> 
                    How it works: Earn 1 point for each friend who signs up using your link and completes their first Crypto MBTI test.
-                 </p>
-               </div>
+                </p>
+              </div>
              )}
  
              {/* Ranked Leaderboard List */}
@@ -990,19 +1077,19 @@ export default function App() {
                        <div className="flex items-center gap-3">
                          <span className="text-sm font-semibold text-slate-400 w-6 text-right">{index + 1}.</span>
                          <span className="font-medium text-slate-200">{user.username}</span>
-                       </div>
+                </div>
                        <span className="font-bold text-lg text-teal-400">{user.points} pts</span>
                      </li>
                    ))}
                  </ol>
                )}
-             </div>
-             
+                </div>
+
               {/* Footer */}
               <footer className="w-full text-center text-xs text-slate-500 mt-auto pt-8 pb-4 z-10">
                  © 2024 Checkmate Foundation
               </footer>
-           </div>
+                </div>
          ) : showHistoryPage ? (
            // --- History Page JSX ---
            <div className="container mx-auto px-4 py-12 min-h-screen flex flex-col items-center bg-gradient-to-b from-slate-800 to-slate-900 text-white relative">
@@ -1019,7 +1106,7 @@ export default function App() {
              
              <h1 className="text-3xl md:text-4xl font-bold mb-8 mt-12 text-center text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">
                Your Test History
-             </h1>
+              </h1>
 
              <div className="w-full max-w-2xl bg-slate-800/50 border border-slate-700 rounded-xl shadow-lg backdrop-blur-sm p-6">
                {loadingPreviousResults ? (
@@ -1039,7 +1126,7 @@ export default function App() {
                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${result.test_type === 'lite' ? 'bg-cyan-800/70 text-cyan-200' : 'bg-purple-800/70 text-purple-200'}`}>
                            {result.test_type || 'standard'}
                          </span>
-                       </div>
+                </div>
                        <div className="text-right">
                           <span className="text-xs text-slate-500 block mb-1">{new Date(result.created_at).toLocaleString()}</span>
                           <button 
@@ -1048,13 +1135,13 @@ export default function App() {
                            >
                              View Details
                           </button>
-                       </div>
+                </div>
                      </li>
                    ))}
                  </ul>
                )}
-             </div>
-             
+              </div>
+
               {/* Footer */}
               <footer className="w-full text-center text-xs text-slate-500 mt-auto pt-8 pb-4 z-10">
                  © 2024 Checkmate Foundation
@@ -1068,7 +1155,7 @@ export default function App() {
              <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-72 h-72 bg-gradient-to-tr from-cyan-600/10 to-transparent rounded-full opacity-30 z-0"></div>
 
              {/* Back Button */}
-             <button 
+                <button 
                onClick={() => setShowTypesPage(false)} 
                className="absolute top-6 left-6 z-20 text-sm text-slate-400 hover:text-teal-300 transition duration-200 flex items-center gap-1"
              >
@@ -1076,7 +1163,7 @@ export default function App() {
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                </svg>
                Back to Home
-             </button>
+                </button>
 
              {/* Main Content Area */}
              <div className="w-full max-w-5xl z-10 mt-16 mb-8 bg-slate-800/50 border border-slate-700 rounded-xl shadow-lg backdrop-blur-sm p-6 md:p-10">
@@ -1096,13 +1183,13 @@ export default function App() {
                        <div className="flex justify-between text-sm mb-2">
                          <span className="font-medium text-teal-400">{dim.type1}</span>
                          <span className="font-medium text-cyan-400">{dim.type2}</span>
-                       </div>
+              </div>
                        {/* Use dimensionSentences which IS defined */}
                        <p className="text-sm text-slate-400">{dimensionSentences[dim.key]?.type1} vs {dimensionSentences[dim.key]?.type2}</p> 
-                     </div>
+            </div>
                    ))}
-                 </div>
-               </div>
+          </div>
+        </div>
 
                {/* Types Section */}
                <div className="mb-6">
@@ -1114,10 +1201,10 @@ export default function App() {
                        <div key={typeCode} className="p-4 bg-slate-700/40 rounded-lg border border-slate-600/60 text-center hover:bg-slate-700/60 transition duration-200 cursor-default">
                           <p className="font-bold text-lg text-white">{typeCode}</p>
                           <p className="text-sm text-slate-300">{typeDescriptions[typeCode]?.name}</p>
-                      </div>
+            </div>
                     ))}
-                  </div>
-               </div>
+          </div>
+        </div>
              </div>
 
              {/* Footer */}
@@ -1174,7 +1261,7 @@ export default function App() {
                               const sentenceKey = isType1Dominant ? 'type1' : 'type2';
                               const sentence = dimensionSentences[dim.key]?.[sentenceKey] || ''; // Get sentence
 
-                              return (
+    return (
                                 <div key={dim.key} className="text-left">
                                    <div className="flex justify-between items-center mb-1">
                                       <span className="text-sm font-medium text-slate-300 flex items-center">
@@ -1183,10 +1270,10 @@ export default function App() {
                                       <span className={`text-sm font-semibold ${isType1Dominant ? 'text-teal-400' : 'text-cyan-400'}`}>
                                         {isType1Dominant ? Math.round(score) : Math.round(100 - score)}% {/* Rounded score */}
                                       </span>
-                                   </div>
+              </div>
                                   <DimensionBar label="" score={score} />
                                   <p className="text-xs text-slate-400 mt-1 pl-1">{sentence}</p> {/* Display sentence */}
-                                </div>
+            </div>
                               );
                             })}
                           </div>
@@ -1197,8 +1284,8 @@ export default function App() {
                           <div className="mt-8 mb-6 p-5 bg-gradient-to-r from-teal-900/30 to-cyan-900/30 border border-teal-600/50 rounded-lg text-center shadow-inner">
                             <p className="font-semibold text-teal-300 mb-2">Enjoy your results?</p>
                             <p className="text-sm text-slate-300 mb-3">Create a free account to save your type, track changes, and get referral points!</p>
-                            <button 
-                              onClick={() => {
+                <button 
+                  onClick={() => {
                                  console.log("Prompting login from guest result view");
                                  setAuthMode('register'); // Suggest register first
                                  setShowAuthModal(true); 
@@ -1207,7 +1294,7 @@ export default function App() {
                               className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-5 rounded-full text-sm transition duration-200 shadow hover:shadow-md"
                             >
                               Create Account to Save
-                            </button>
+                </button>
                           </div>
                         )}
 
@@ -1217,7 +1304,7 @@ export default function App() {
                             <p className="text-sm text-slate-400 mb-2">Share your referral link to earn points!</p>
                             <div className="flex justify-center items-center">
                               {/* <span className="text-xs font-mono text-teal-300 truncate">{`${window.location.origin}/?ref=${userProfile.referral_code}`}</span> */}
-                              <button 
+              <button 
                                  onClick={() => handleCopyReferralLink(userProfile.referral_code)}
                                  className="flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200 bg-slate-700 hover:bg-slate-600/80 px-4 py-2 rounded-md transition duration-200 whitespace-nowrap shadow"
                                  title={`Copy referral link: ${window.location.origin}/?ref=${userProfile.referral_code}`}
@@ -1227,7 +1314,7 @@ export default function App() {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                  </svg>
                                  {copyButtonText}
-                              </button>
+              </button>
                             </div>
                           </div>
                         )}
@@ -1237,8 +1324,8 @@ export default function App() {
                           <button
                             onClick={handleShare}
                             className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold py-2 px-6 rounded-full shadow hover:shadow-lg transform hover:-translate-y-px transition duration-200 ease-in-out"
-                          >
-                            Share on X
+              >
+                Share on X
                           </button>
                           <button
                             onClick={handleRetakeQuiz}
@@ -1246,17 +1333,17 @@ export default function App() {
                           >
                             Take Test Again
                           </button>
-                        </div>
+            </div>
                       </>
                     );
                 })()} {/* End IIFE */}
-              </div>
+          </div>
 
               {/* Footer */}
               <footer className="w-full text-center text-xs text-slate-500 mt-auto pt-8 pb-4 z-10">
                  © 2024 Checkmate Foundation | <a href="https://checkmate.foundation" target="_blank" rel="noopener noreferrer" className="hover:text-teal-400">checkmate.foundation</a>
               </footer>
-            </div>
+        </div>
          ) : showQuiz && questions.length > 0 ? (
             // --- Question Screen JSX ---
             <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center bg-gradient-to-b from-slate-800 to-slate-900 text-white">
@@ -1274,7 +1361,7 @@ export default function App() {
                        {/* Placeholder for potential profile icon/logout */}
                        <div className="w-28 text-right"> {/* Adjusted width for balance */}
                          {/* You could add user info here if needed, but it's also at top right */}
-                       </div> 
+      </div>
                    </div>
 
                    {/* Progress Bar */}
@@ -1291,7 +1378,7 @@ export default function App() {
                    const isAnswered = answers[globalIndex] !== undefined;
                    const cardId = `question-${globalIndex}`;
 
-                   return (
+  return (
                      <div
                        key={globalIndex}
                        id={cardId}
@@ -1308,7 +1395,7 @@ export default function App() {
                          {likertOptions.map((option, index) => {
                            const isSelected = answers[globalIndex] === option.value;
                            return (
-                             <button
+              <button
                                key={index}
                                onClick={() => handleAnswer(globalIndex, option.value)}
                                className={`px-4 py-2 rounded-full border text-sm font-medium transition duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-cyan-500 min-w-[100px] text-center
@@ -1316,7 +1403,7 @@ export default function App() {
                                            `}
                              >
                                {option.label}
-                             </button>
+              </button>
                            );
                          })}
                        </div>
@@ -1326,7 +1413,7 @@ export default function App() {
 
                  {/* Navigation Buttons */}
                  <div className="navigation-buttons flex justify-between items-center mt-6 border-t border-slate-700/50 pt-6">
-                   <button
+              <button
                      onClick={handleBack}
                      disabled={currentPageIndex === 0}
                      className="px-6 py-2 rounded-full border border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition duration-200"
@@ -1342,39 +1429,37 @@ export default function App() {
                      className="px-6 py-2 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-semibold shadow disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none transition duration-200 transform hover:scale-105"
                    >
                      {currentPageIndex === totalPages - 1 ? 'View Results' : 'Next'}
-                   </button>
-                 </div>
-               </div>
+              </button>
+            </div>
+          </div>
 
                {/* Footer */}
                <footer className="w-full text-center text-xs text-slate-500 mt-auto pt-8 pb-4">
                  © 2024 Checkmate Foundation
                </footer>
-            </div>
+        </div>
          ) : (
             // --- Home Screen JSX (Default if no other state matches) ---
             <div className="container mx-auto px-4 min-h-screen flex flex-col bg-gradient-to-b from-slate-800 to-slate-900 text-white relative overflow-hidden">
                <div className="flex-1 flex flex-col">
                  <div className="w-full max-w-xl mx-auto text-center z-10 pt-8 mb-auto relative">
-                   <h1 className="text-4xl md:text-5xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">Crypto MBTI</h1>
-                   <p className="text-2xl md:text-3xl mb-4 text-slate-300 drop-shadow-sm">Free Crypto Personality Test</p>
+                   <h1 className="text-4xl md:text-5xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">Crypto MBTI</h1>
+                   <p className="text-lg font-medium text-teal-300 mb-8 text-center">What Shapes Your Crypto Personality?</p>
                    <div className="mb-6 max-w-md mx-auto text-slate-400 text-sm space-y-4 text-left pl-4"> 
-                     <p className="text-lg font-medium text-teal-300 mb-2">What Shapes Your Crypto Personality?</p>
-                     
                      <div className="space-y-1">
                        <p className="font-medium text-cyan-300">Risk Instinct:</p>
                        <p>Are you a fearless <span className="font-semibold text-teal-400">Ape</span>, or a calculated <span className="font-semibold text-cyan-400">Builder</span>?</p>
-                     </div>
+              </div>
 
                      <div className="space-y-1">
                        <p className="font-medium text-cyan-300">Holding Style:</p>
                        <p>Do you have <span className="font-semibold text-teal-400">Diamond Hands</span> through the dips, or <span className="font-semibold text-cyan-400">Paper Hands</span> ready to exit?</p>
-                     </div>
+            </div>
 
                      <div className="space-y-1">
                        <p className="font-medium text-cyan-300">Chain Loyalty:</p>
                        <p>Are you a loyal <span className="font-semibold text-teal-400">Maxi</span>, or an adventurous <span className="font-semibold text-cyan-400">Omni</span> explorer?</p>
-                     </div>
+              </div>
 
                      <div className="space-y-1">
                        <p className="font-medium text-cyan-300">Asset Identity:</p>
@@ -1383,26 +1468,26 @@ export default function App() {
                    </div>
 
                    <div className="flex flex-col gap-4 items-center mt-8">
-                     <button
+                  <button
                        onClick={() => startTestFlow('lite')}
                        className="w-64 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition duration-300 ease-in-out text-lg"
-                     >
+                  >
                        Lite Test (~2 mins)
-                     </button>
-                     <button
+                  </button>
+                  <button 
                        onClick={() => startTestFlow('standard')}
                        className="w-64 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition duration-300 ease-in-out text-lg"
-                     >
+                  >
                        Standard (~5 mins)
-                     </button>
-                     <button
+                  </button>
+                <button 
                        onClick={() => setShowTypesPage(true)}
                        className="mt-4 text-sm text-slate-400 hover:text-teal-300 transition duration-200 underline"
                      >
                        Learn about the 16 Personalities
-                     </button>
-                   </div>
-                 </div>
+                </button>
+            </div>
+          </div>
 
                  <footer className="w-full text-center text-xs text-slate-500 py-4 z-10">
                    <p className="mb-2">© 2025 Checkmate Foundation. All rights reserved</p>
@@ -1431,12 +1516,12 @@ export default function App() {
                      >
                        Privacy Policy
                      </a>
-                   </div>
+        </div>
                  </footer>
-               </div>
+      </div>
             </div>
          ) }
         </div>
       </ErrorBoundary>
-    );
+  );
 }

@@ -45,48 +45,39 @@ export default function Register({ onSwitchToLogin, setAuthMode, initialReferral
     setMessage(null);
 
     try {
+      // Sign up the user
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email,
         password: password,
         options: {
           data: { 
             username: username, 
-            referred_by: referralCode || null 
+            referred_by: referralCode || null
           }
         }
       });
 
       if (signUpError) throw signUpError;
 
-      // Check if the user is authenticated
-      const session = supabase.auth.getSession();
-      if (!session) {
-        console.error('User is not authenticated');
-        setError('User is not authenticated');
-        return;
-      }
+      // Log the registration data for debugging
+      console.log('Registration data:', {
+        email,
+        username,
+        referralCode,
+        metadata: data?.user?.user_metadata,
+        signUpOptions: {
+          email,
+          password,
+          options: {
+            data: {
+              username,
+              referred_by: referralCode || null
+            }
+          }
+        }
+      });
 
-      // Manual upsert into users table to record referred_by and generate referral_code
-      const newUserId = data.user.id;
-      const generatedCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-
-      const { error: upsertError } = await supabase.from('users').upsert(
-        {
-          auth_user_id: newUserId,
-          username: username,
-          referral_code: generatedCode,
-          referred_by: referralCode || null,
-          points: 0
-        },
-        { onConflict: ['auth_user_id'] }
-      );
-      if (upsertError) {
-        console.error('Error upserting user record:', upsertError.message);
-        setError('Registration succeeded but failed to store referral info.');
-        return; // prevent clearing form
-      }
-
-      setMessage('Registration successful! Please check your email to verify your account.');
+      setMessage('Check your email to complete registration');
       console.log('Registration successful', data);
       setEmail('');
       setPassword('');
@@ -94,8 +85,8 @@ export default function Register({ onSwitchToLogin, setAuthMode, initialReferral
       setReferralCode('');
 
     } catch (error) {
-      setError(error.message);
       console.error('Registration error:', error.message);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -151,8 +142,8 @@ export default function Register({ onSwitchToLogin, setAuthMode, initialReferral
             placeholder="ABCDE (Optional)"
           />
         </div>
-        {error && <p className="text-red-400 text-sm text-center py-2">{error}</p>}
         {message && <p className="text-green-400 text-sm text-center py-2">{message}</p>}
+        {error && <p className="text-red-400 text-sm text-center py-2">{error}</p>}
         <button 
           type="submit" 
           disabled={loading}
