@@ -1,6 +1,6 @@
-import { questions, typeDescriptions } from './data';
+import { typeDescriptions } from './data';
 
-export function calculateMBTI(answers) {
+export function calculateMBTI(answers, testQuestions) {
   // Initialize scores for each dimension
   const scores = {
     AB: 0, // Risk: A (Ape) vs B (Builder)
@@ -9,11 +9,20 @@ export function calculateMBTI(answers) {
     TN: 0  // Asset: T (Token) vs N (NFT)
   };
 
+  // Make sure we have questions to iterate over
+  if (!testQuestions || testQuestions.length === 0) {
+    console.error("calculateMBTI called without valid testQuestions");
+    // Return a default or error state
+    return { type: 'ERROR', normalizedScores: { AB: 50, DP: 50, MO: 50, TN: 50 } };
+  }
+
   // Calculate scores based on Likert scale values (-2 to +2)
   answers.forEach((answer, index) => {
-    if (answer === undefined || index >= questions.length) return; // Skip unanswered or out-of-bounds questions
+    // Skip unanswered or if index is out of bounds for the actual test questions
+    if (answer === undefined || index >= testQuestions.length) return; 
     
-    const question = questions[index];
+    // Use the question from the passed testQuestions array
+    const question = testQuestions[index]; 
     if (!question) return; // Skip if question is somehow undefined
     
     const dimension = question.type; // e.g., "AB", "DP", "MO", "TN"
@@ -24,7 +33,7 @@ export function calculateMBTI(answers) {
     const isPositiveType = question.positiveType === dimension[0];
     const scoreChange = isPositiveType ? answer : -answer;
     
-    // Debug logging for MO dimension
+    // Debug logging for MO dimension (kept for now)
     if (dimension === 'MO') {
       console.log(`MO Question ${index + 1}:`, {
         text: question.text,
@@ -45,12 +54,12 @@ export function calculateMBTI(answers) {
     }
   });
 
-  // Calculate relevant max scores for proper normalization
+  // Calculate relevant max scores based on the actual questions used
   const dimensionQuestionCounts = {
-    AB: questions.filter(q => q.type === 'AB').length,
-    DP: questions.filter(q => q.type === 'DP').length,
-    MO: questions.filter(q => q.type === 'MO').length,
-    TN: questions.filter(q => q.type === 'TN').length
+    AB: testQuestions.filter(q => q.type === 'AB').length,
+    DP: testQuestions.filter(q => q.type === 'DP').length,
+    MO: testQuestions.filter(q => q.type === 'MO').length,
+    TN: testQuestions.filter(q => q.type === 'TN').length
   };
 
   const normalizedScores = {};
@@ -69,6 +78,11 @@ export function calculateMBTI(answers) {
     const totalScoreRange = maxPossibleScore - minPossibleScore; // Full range from min to max
     
     // Normalize to 0-100 range
+    // Ensure totalScoreRange is not zero to avoid division by zero
+    if (totalScoreRange === 0) {
+       normalizedScores[dim] = 50; // Default to neutral if range is zero (e.g., only one question type was present)
+       return;
+    }
     const normalizedScore = Math.round(((scores[dim] - minPossibleScore) / totalScoreRange) * 100);
     normalizedScores[dim] = normalizedScore;
   });

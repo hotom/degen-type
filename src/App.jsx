@@ -51,6 +51,7 @@ const getTestQuestions = (type) => {
       liteQuestions.splice(startIdx, dimensionQuestions.length, ...dimensionQuestions);
     }
 
+    console.log('[getTestQuestions - Lite] Selected questions:', liteQuestions);
     return liteQuestions; // Return 24 questions (3 per side of each dimension)
   }
   return []; // Default empty
@@ -126,10 +127,10 @@ export default function App() {
   const [logoutSuccess, setLogoutSuccess] = useState(false); // Add this new state
 
   const dimensions = [
-    { key: 'AB', name: 'Risk', type1: 'Ape', type2: 'Builder', emoji: '🦍/👷' },
-    { key: 'DP', name: 'Holding', type1: 'Diamond', type2: 'Paper', emoji: '💎/📄' },
-    { key: 'MO', name: 'Chain', type1: 'Maxi', type2: 'Omni', emoji: '⛓️/🌌' },
-    { key: 'TN', name: 'Asset', type1: 'Token', type2: 'NFT', emoji: '🪙/🖼️' },
+    { key: 'AB', name: 'Risk Instinct', type1: 'Ape', type2: 'Builder', emoji: '🦍/👷' },
+    { key: 'DP', name: 'Holding Style', type1: 'Diamond', type2: 'Paper', emoji: '💎/📄' },
+    { key: 'MO', name: 'Chain Loyalty', type1: 'Maxi', type2: 'Omni', emoji: '⛓️/🌌' },
+    { key: 'TN', name: 'Asset Identity', type1: 'Token', type2: 'NFT', emoji: '🪙/🖼️' },
   ];
 
   // Restore dimensionSentences definition here
@@ -139,6 +140,31 @@ export default function App() {
     MO: { type1: "You are more of a Chain Maxi", type2: "You explore across Omni-chain" },
     TN: { type1: "You prefer Tokens over NFTs", type2: "You prefer NFTs over Tokens" },
   };  
+
+  // --- Define Type Groups ---
+  const typeGroups = [
+    {
+      title: "Strategists",
+      description: "Thesis-driven long-term thinkers. They build with conviction, research deeply, and hold through the noise. \"Play the long game. Think five moves ahead.\"",
+      types: ["BDMT", "BDMN", "BDOT", "BDON"] // Builder + Diamond Hands
+    },
+    {
+      title: "Degens",
+      description: "Fearless risk-takers with unshakable conviction. They ape into trends early and ride them to Valhalla — or rekt. \"Aped at launch. Still holding.\"",
+      types: ["ADMT", "ADMN", "ADOT", "ADON"] // Ape + Diamond Hands
+    },
+    {
+      title: "Diamond Explorers",
+      description: "Curious and adaptive. They bridge chains, chase alpha, and never stay in one place too long. \"Bridge now. Think later.\"",
+      types: ["APOT", "APON", "BPOT", "BPON"] // Paper Hands + Omni-chain Focus (Ape/Builder + Paper + Omni) - Note: Corrected description based on types
+    },
+    {
+      title: "Cautious Nomads",
+      description: "Contradictory but relatable. Cautious with their bags, yet oddly loyal to one chain. Caught between conviction and FOMO. \"I won't sell… unless it dumps.\"",
+      types: ["APMT", "APMN", "BPMT", "BPMN"] // Paper Hands + Maxi Focus (Ape/Builder + Paper + Maxi) - Note: Corrected description based on types
+    }
+  ];
+  // --- End Type Groups ---
 
   // --- Calculate derived state early --- 
   const answeredCount = answers.filter(a => a !== undefined).length;
@@ -404,7 +430,7 @@ export default function App() {
   // --- Initiate Test (actual setup) ---
   const initiateTest = (type) => {
     const selectedQuestions = getTestQuestions(type);
-    const qpp = type === 'lite' ? 6 : 4; // 6 questions per page for lite mode, 4 for standard
+    const qpp = type === 'lite' ? 4 : 5; // 4 questions per page for lite mode (24/6), 5 for standard (40/8)
     setTestType(type);
     setQuestions(selectedQuestions);
     setAnswers(Array(selectedQuestions.length).fill(undefined));
@@ -435,9 +461,10 @@ export default function App() {
   const handleAnswer = (globalIndex, value) => {
     const newAnswers = [...answers];
     if (globalIndex >= 0 && globalIndex < questions.length) {
+      console.log(`[handleAnswer] Updating index ${globalIndex} with value ${value}`);
       newAnswers[globalIndex] = value;
-    setAnswers(newAnswers);
-    
+      setAnswers(newAnswers);
+      
       // --- Scroll to next question IF it's on the same page --- 
       // /* // <-- REMOVE THIS LINE
       const nextGlobalIndex = globalIndex + 1;
@@ -493,7 +520,9 @@ export default function App() {
   };
 
   const handleViewResults = async (force = true) => { 
-    const result = calculateMBTI(answers);
+    console.log('[handleViewResults] Answers before calculation:', answers);
+    // Pass the current 'questions' state to the calculation function
+    const result = calculateMBTI(answers, questions); 
     const mbtiTypeCode = result.type;
     const calculatedPercentages = result.normalizedScores;
 
@@ -630,7 +659,7 @@ export default function App() {
         const isType1Dominant = percent >= 50;
         const dominantType = isType1Dominant ? type1 : type2;
         const dominantPercent = isType1Dominant ? percent : 100 - percent;
-        return `${dim.emoji} ${dominantType}: ${dominantPercent}%`;
+        return `${dim.name}: ${dominantType} ${Math.round(dominantPercent)}%`;
     }).join('\n');
 
     // Build dynamic URL with referral code if available
@@ -1191,7 +1220,7 @@ export default function App() {
              {/* Main Content Area */}
              <div className="w-full max-w-5xl z-10 mt-16 mb-8 bg-slate-800/50 border border-slate-700 rounded-xl shadow-lg backdrop-blur-sm p-6 md:p-10">
                <h1 className="text-3xl md:text-4xl font-bold mb-10 text-center text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">
-                 Understanding your Crypto Personality
+                 Understanding your Crypto MBTI
                </h1>
 
                {/* Dimensions Section */}
@@ -1217,18 +1246,35 @@ export default function App() {
                {/* Types Section */}
                <div className="mb-6">
                  <h2 className="text-2xl font-semibold mb-8 text-center text-cyan-300">The 16 Crypto Personalities</h2>
-                  {/* TODO: Define or import `typeGroups` data to render the list of types */}
-                  {/* Example: Render type codes from typeDescriptions */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4">
-                    {Object.keys(typeDescriptions).sort().map(typeCode => (
-                       <div key={typeCode} className="p-4 bg-slate-700/40 rounded-lg border border-slate-600/60 text-center hover:bg-slate-700/60 transition duration-200 cursor-default">
-                          <p className="font-bold text-lg text-white">{typeCode}</p>
-                          <p className="text-sm text-slate-300">{typeDescriptions[typeCode]?.name}</p>
-            </div>
+                  {/* Render types grouped */}
+                  <div className="space-y-10">
+                    {typeGroups.map(group => (
+                      <div key={group.title} className="mb-10 p-6 bg-slate-700/20 border border-slate-600/30 rounded-lg shadow-inner">
+                        <h3 className="text-xl font-semibold mb-3 text-center text-teal-300">{group.title}</h3>
+                        <p className="text-sm text-slate-400 mb-6 text-center max-w-xl mx-auto">{group.description}</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          {group.types.map(typeCode => (
+                             <div key={typeCode} className="p-4 bg-slate-700/40 rounded-lg border border-slate-600/60 text-center hover:bg-slate-700/60 transition duration-200 cursor-default">
+                                <p className="font-bold text-lg text-white">{typeCode}</p>
+                                <p className="text-sm text-slate-300">{typeDescriptions[typeCode]?.name || 'Unknown Name'}</p>
+                              </div>
+                          ))}
+                        </div>
+                      </div>
                     ))}
-          </div>
-        </div>
-             </div>
+                  </div>
+                  
+                  {/* Find Your Type Button */}
+                  <div className="text-center mt-12">
+                    <button 
+                      onClick={() => setShowTypesPage(false)} 
+                      className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition duration-300 ease-in-out text-lg"
+                    >
+                      Find Your Type &rarr;
+                    </button>
+                  </div>
+                </div> {/* Closing tag for the main content area div */} 
+             </div> {/* Closing tag for the Types Page JSX container div */} 
 
              {/* Footer */}
              <footer className="w-full text-center text-xs text-slate-500 mt-auto pb-4 z-10">
@@ -1246,32 +1292,47 @@ export default function App() {
               {/* Result Card */}
               <div className="w-full max-w-2xl text-center p-6 md:p-8 bg-slate-800/60 border border-slate-700 rounded-2xl shadow-xl backdrop-blur-md z-10 relative overflow-hidden">
                 
-                <h1 className="text-3xl md:text-4xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">Your Crypto Personality</h1>
+                {/* New Result Header Structure */}
+                {(() => {
+                  const result = typeDescriptions[mbtiType];
+                  if (!result) {
+                    return <div className="min-h-[150px] flex items-center justify-center text-red-400">Error: Result description not found for type '{mbtiType}'. Please try again.</div>;
+                  }
+                  return (
+                    <div className="mb-8">
+                      <p className="text-lg text-slate-400 mb-1">Your crypto personality type is:</p> {/* Size matches tagline, non-italic */}
+                      <h2 className="text-3xl font-bold text-white tracking-tight mb-1">
+                        {mbtiType} - <span className="text-teal-400">{result.name}</span>
+                      </h2>
+                      <p className="text-lg text-slate-300 italic mb-5">"{result.tagline}"</p> {/* Increased margin below tagline */} 
+                      {/* Optional Image could go here */}
+                      {/* {result.image && (
+                        <img src={result.image} alt={result.name} className="w-32 h-32 mx-auto my-4 rounded-full border-4 border-teal-500/30 shadow-lg" />
+                      )} */}
+                    </div>
+                  );
+                })()}
                 
                 {(() => { // Immediately invoked function expression (IIFE) to handle conditional logic cleanly
                     const result = typeDescriptions[mbtiType]; 
                     if (!result) {
-                      return <div className="min-h-[300px] flex items-center justify-center text-red-400">Error: Result description not found for type '{mbtiType}'. Please try again.</div>;
+                      // Error already handled above, return null or minimal content here if needed
+                      return null; 
                     }
                     
                     return (
                       <>
-                        {/* Type and Name */}
-                        <div className="mb-6">
-                          <h2 className="text-5xl font-extrabold text-white tracking-tight mb-1 drop-shadow-lg">{mbtiType}</h2>
-                          <h3 className="text-2xl font-semibold text-teal-400 mb-3">{result.name}</h3>
-                          {/* Image (Optional) */}
-                          {result.image && (
-                              <img src={result.image} alt={result.name} className="w-32 h-32 mx-auto mb-4 rounded-full border-4 border-teal-500/30 shadow-lg" />
-                          )}
-                          <p className="text-slate-300 italic text-sm mb-5">"{result.tagline}"</p>
-                          <p className="text-slate-400 text-base leading-relaxed">{result.description}</p>
-                        </div>
+                        {/* Detailed Description Section */}
+                        {result.detailedDescription && (
+                          <div className="my-6 text-left bg-slate-700/20 p-4 rounded-lg border border-slate-600/30">
+                            <p className="text-slate-300 text-sm leading-relaxed">{result.detailedDescription}</p>
+                          </div>
+                        )}
 
-                        {/* Dimensions Section */}
+                        {/* Personality Traits Section */}
                         <div className="mt-8 mb-4 pt-6 border-t border-slate-700/50">
-                          <h4 className="text-xl font-semibold mb-5 text-cyan-300">Your Dimensional Breakdown</h4>
-                          <div className="space-y-5">
+                          <h4 className="text-xl font-semibold mb-8 text-cyan-300">Personality Traits</h4>
+                          <div className="space-y-4"> {/* Reduced spacing */}
                             {dimensions.map(dim => {
                               const score = percentages[dim.key];
                               // Handle cases where score might be undefined/null initially
@@ -1280,23 +1341,51 @@ export default function App() {
                               }
                               const isType1Dominant = score >= 50;
                               const dominantType = isType1Dominant ? dim.type1 : dim.type2;
-                              const dominantEmoji = isType1Dominant ? dim.emoji.split('/')[0] : dim.emoji.split('/')[1];
+                              const dominantPercent = isType1Dominant ? Math.round(score) : Math.round(100 - score);
                               const sentenceKey = isType1Dominant ? 'type1' : 'type2';
                               const sentence = dimensionSentences[dim.key]?.[sentenceKey] || ''; // Get sentence
 
-    return (
-                                <div key={dim.key} className="text-left">
-                                   <div className="flex justify-between items-center mb-1">
-                                      <span className="text-sm font-medium text-slate-300 flex items-center">
-                                         {dim.emoji} <span className="ml-2">{dim.name}: <span className="font-bold text-white">{dominantType}</span></span>
-                                      </span>
-                                      <span className={`text-sm font-semibold ${isType1Dominant ? 'text-teal-400' : 'text-cyan-400'}`}>
-                                        {isType1Dominant ? Math.round(score) : Math.round(100 - score)}% {/* Rounded score */}
-                                      </span>
-              </div>
-                                  <DimensionBar label="" score={score} />
-                                  <p className="text-xs text-slate-400 mt-1 pl-1">{sentence}</p> {/* Display sentence */}
-            </div>
+                              // Calculate marker position (0% to 100%)
+                              // Inverted logic based on user feedback: position = (100 - score)%
+                              const markerPosition = `${100 - score}%`;
+
+                              return (
+                                <div key={dim.key} className="text-center relative mb-4"> {/* Removed group/relative, no longer needed for tooltip */}
+                                  {/* Top Label: Percentage and Dominant Type */}
+                                  <div className="text-lg font-semibold mb-1"> {/* Reduced bottom margin */}
+                                    <span className={`${isType1Dominant ? 'text-teal-300' : 'text-cyan-300'}`}>{dominantPercent}%</span>
+                                    <span className="text-white ml-1">{dominantType}</span>
+                                  </div>
+                                  
+                                  {/* Description Sentence */}
+                                  <p className="text-xs text-slate-400 mb-2">{sentence}</p> 
+                                  
+                                  {/* Bar Container */}
+                                  <div className="relative w-full h-2 bg-slate-700 rounded-full mb-1">
+                                    {/* Colored part of the bar - Now always 100% width */}
+                                    <div 
+                                      className={`absolute top-0 left-0 h-full rounded-full ${
+                                        dim.key === 'AB' ? 'bg-gradient-to-r from-teal-400 to-cyan-500' : 
+                                        dim.key === 'DP' ? 'bg-gradient-to-r from-amber-400 to-orange-500' : 
+                                        dim.key === 'MO' ? 'bg-gradient-to-r from-emerald-400 to-green-500' : 
+                                        'bg-gradient-to-r from-purple-400 to-pink-500' // Assuming TN colors
+                                      }`}
+                                      style={{ width: `100%` }} // Always full width
+                                    ></div>
+                                    
+                                    {/* Marker - Position based on INVERTED score */}
+                                    <div 
+                                      className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-slate-500 rounded-full shadow" 
+                                      style={{ left: `calc(${markerPosition} - 8px)` }} // Position uses inverted score
+                                    ></div>
+                                  </div>
+                                  
+                                  {/* Bottom Labels: Type 1 and Type 2 */}
+                                  <div className="flex justify-between text-xs text-slate-400 px-1">
+                                    <span>{dim.type1}</span>
+                                    <span>{dim.type2}</span>
+                                  </div>
+                                </div>
                               );
                             })}
                           </div>
@@ -1304,7 +1393,7 @@ export default function App() {
 
                         {/* Guest Prompt */}
                         {!session && guestResultData && (
-                          <div className="mt-8 mb-6 p-5 bg-gradient-to-r from-teal-900/30 to-cyan-900/30 border border-teal-600/50 rounded-lg text-center shadow-inner">
+                          <div className="mt-8 mb-6 p-5 bg-gradient-to-r from-teal-900/30 to-cyan-900/30 border border-teal-600/50 rounded-lg text-center shadow-inner"> {/* Kept existing guest prompt styling */}
                             <p className="font-semibold text-teal-300 mb-2">Enjoy your results?</p>
                             <p className="text-sm text-slate-300 mb-3">Create a free account to save your type, track changes, and get referral points!</p>
                 <button 
@@ -1379,7 +1468,7 @@ export default function App() {
                            Back to Start
                        </button>
                        <h1 className="text-xl md:text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-400">
-                           {testType === 'lite' ? 'Lite Test' : 'Standard (~5 mins)'}
+                           Crypto MBTI - {testType === 'lite' ? 'Lite' : 'Standard'}
                        </h1>
                        {/* Placeholder for potential profile icon/logout */}
                        <div className="w-28 text-right"> {/* Adjusted width for balance */}
@@ -1472,17 +1561,17 @@ export default function App() {
                      <div className="space-y-1">
                        <p className="font-medium text-cyan-300">Risk Instinct:</p>
                        <p>Are you a fearless <span className="font-semibold text-teal-400">Ape</span>, or a calculated <span className="font-semibold text-cyan-400">Builder</span>?</p>
-              </div>
+                     </div>
 
                      <div className="space-y-1">
                        <p className="font-medium text-cyan-300">Holding Style:</p>
                        <p>Do you have <span className="font-semibold text-teal-400">Diamond Hands</span> through the dips, or <span className="font-semibold text-cyan-400">Paper Hands</span> ready to exit?</p>
-            </div>
+                     </div>
 
                      <div className="space-y-1">
                        <p className="font-medium text-cyan-300">Chain Loyalty:</p>
                        <p>Are you a loyal <span className="font-semibold text-teal-400">Maxi</span>, or an adventurous <span className="font-semibold text-cyan-400">Omni</span> explorer?</p>
-              </div>
+                     </div>
 
                      <div className="space-y-1">
                        <p className="font-medium text-cyan-300">Asset Identity:</p>
@@ -1528,17 +1617,13 @@ export default function App() {
                        target="_blank" 
                        rel="noopener noreferrer" 
                        className="hover:text-teal-400 transition-colors"
-                     >
-                       Terms & Conditions
-                     </a>
+                     >Terms & Conditions</a> 
                      <a 
                        href="https://checkmate.foundation/Checkmate%20Foundation%20-%20Privacy%20Notice%20(D240513).pdf" 
                        target="_blank" 
                        rel="noopener noreferrer" 
                        className="hover:text-teal-400 transition-colors"
-                     >
-                       Privacy Policy
-                     </a>
+                     >Privacy Policy</a> 
         </div>
                  </footer>
       </div>
