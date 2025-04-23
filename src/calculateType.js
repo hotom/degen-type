@@ -17,13 +17,25 @@ export function calculateMBTI(answers) {
     if (!question) return; // Skip if question is somehow undefined
     
     const dimension = question.type; // e.g., "AB", "DP", "MO", "TN"
-    // Determine which type is considered "positive" for scoring
-    // E.g., for AB axis, A is positive, B is negative
-    const positiveTypeValue = dimension[0]; // A, D, M, T
-
-    // If the question's positiveType matches the first letter of the dimension,
-    // add the answer directly. Otherwise, invert the answer.
-    const scoreChange = question.positiveType === positiveTypeValue ? answer : -answer;
+    
+    // For each dimension, the first letter is always the positive type
+    // A, D, M, T are positive types
+    // B, P, O, N are negative types
+    const isPositiveType = question.positiveType === dimension[0];
+    const scoreChange = isPositiveType ? answer : -answer;
+    
+    // Debug logging for MO dimension
+    if (dimension === 'MO') {
+      console.log(`MO Question ${index + 1}:`, {
+        text: question.text,
+        positiveType: question.positiveType,
+        answer,
+        scoreChange,
+        currentScore: scores[dimension],
+        dimension,
+        isPositiveType
+      });
+    }
     
     // Check if the dimension exists in scores before updating
     if (scores.hasOwnProperty(dimension)) {
@@ -51,11 +63,13 @@ export function calculateMBTI(answers) {
       return;
     }
 
-    const maxPossibleScore = numQuestions * 2; // Max positive swing
-    const totalScoreRange = maxPossibleScore * 2; // Full range from min to max
+    // Each question can contribute -2 to +2, so the total range is 4
+    const maxPossibleScore = numQuestions * 2; // Maximum positive score
+    const minPossibleScore = -numQuestions * 2; // Maximum negative score
+    const totalScoreRange = maxPossibleScore - minPossibleScore; // Full range from min to max
     
     // Normalize to 0-100 range
-    const normalizedScore = Math.round(((scores[dim] + maxPossibleScore) / totalScoreRange) * 100);
+    const normalizedScore = Math.round(((scores[dim] - minPossibleScore) / totalScoreRange) * 100);
     normalizedScores[dim] = normalizedScore;
   });
 

@@ -26,67 +26,78 @@ export default function Register({ onSwitchToLogin, setAuthMode, initialReferral
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    // Basic frontend validation
-    if (username.length < 3) {
-      setError('Username must be at least 3 characters long.');
-      return;
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
-      return;
-    }
-    if (referralCode && referralCode.length !== 5) {
-      setError('Referral code must be exactly 5 characters long if provided.');
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setMessage(null);
 
+    // Validate username length
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters long');
+      setLoading(false);
+      return;
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      setLoading(false);
+      return;
+    }
+
+    // Validate referral code length if provided
+    if (referralCode && referralCode.length !== 5) {
+      setError('Referral code must be 5 characters long');
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Sign up the user
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          data: { 
-            username: username, 
-            referred_by: referralCode || null
-          }
-        }
-      });
-
-      if (signUpError) throw signUpError;
-
-      // Log the registration data for debugging
-      console.log('Registration data:', {
+      console.log('Starting registration process...');
+      
+      // Prepare registration data
+      const registrationData = {
         email,
-        username,
-        referralCode,
-        metadata: data?.user?.user_metadata,
-        signUpOptions: {
-          email,
-          password,
-          options: {
-            data: {
-              username,
-              referred_by: referralCode || null
-            }
-          }
+        password,
+        options: {
+          data: {
+            username,
+            referred_by: referralCode || null
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`
         }
-      });
+      };
 
-      setMessage('Check your email to complete registration');
-      console.log('Registration successful', data);
-      setEmail('');
-      setPassword('');
-      setUsername('');
-      setReferralCode('');
+      console.log('Registration data:', registrationData);
 
-    } catch (error) {
-      console.error('Registration error:', error.message);
-      setError(error.message);
+      // Register the user
+      const { data, error } = await supabase.auth.signUp(registrationData);
+
+      if (error) {
+        console.error('Registration error:', error);
+        setError(error.message);
+      } else {
+        console.log('Registration response:', data);
+        if (data?.user) {
+          console.log('User created successfully:', data.user);
+          console.log('Email confirmation status:', {
+            emailConfirmed: data.user.email_confirmed_at,
+            lastSignIn: data.user.last_sign_in_at,
+            createdAt: data.user.created_at
+          });
+          setMessage('Check your email to complete registration');
+          // Clear form
+          setEmail('');
+          setPassword('');
+          setUsername('');
+          setReferralCode('');
+        } else {
+          console.error('No user data in response');
+          setError('Registration failed - no user data received');
+        }
+      }
+    } catch (err) {
+      console.error('Unexpected error during registration:', err);
+      setError('An unexpected error occurred');
     } finally {
       setLoading(false);
     }

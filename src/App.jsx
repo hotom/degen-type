@@ -17,19 +17,41 @@ const getTestQuestions = (type) => {
   }
   if (type === 'lite') {
     const liteQuestions = [];
-    const questionsPerType = 3;
-    const types = ['A', 'B', 'D', 'P', 'M', 'O', 'T', 'N'];
+    const questionsPerSide = 3; // Questions per side of each dimension
+    const dimensions = ['AB', 'DP', 'MO', 'TN'];
 
-    types.forEach(positiveType => {
-      const filtered = initialQuestions.filter(q => q.positiveType === positiveType);
-      liteQuestions.push(...filtered.slice(0, questionsPerType));
+    dimensions.forEach(dimension => {
+      // Get questions for first type (e.g., A, D, M, T)
+      const firstTypeQuestions = initialQuestions
+        .filter(q => q.type === dimension && q.positiveType === dimension[0])
+        .slice(0, questionsPerSide);
+      
+      // Get questions for second type (e.g., B, P, O, N)
+      const secondTypeQuestions = initialQuestions
+        .filter(q => q.type === dimension && q.positiveType === dimension[1])
+        .slice(0, questionsPerSide);
+      
+      // Add both sets of questions
+      liteQuestions.push(...firstTypeQuestions, ...secondTypeQuestions);
     });
-    // Simple shuffle to mix axes a bit (optional but recommended)
-    for (let i = liteQuestions.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [liteQuestions[i], liteQuestions[j]] = [liteQuestions[j], liteQuestions[i]];
+
+    // Shuffle questions within each dimension to mix them up
+    for (let i = 0; i < dimensions.length; i++) {
+      const startIdx = i * (questionsPerSide * 2);
+      const endIdx = startIdx + (questionsPerSide * 2);
+      const dimensionQuestions = liteQuestions.slice(startIdx, endIdx);
+      
+      // Shuffle this dimension's questions
+      for (let j = dimensionQuestions.length - 1; j > 0; j--) {
+        const k = Math.floor(Math.random() * (j + 1));
+        [dimensionQuestions[j], dimensionQuestions[k]] = [dimensionQuestions[k], dimensionQuestions[j]];
+      }
+      
+      // Put shuffled questions back
+      liteQuestions.splice(startIdx, dimensionQuestions.length, ...dimensionQuestions);
     }
-    return liteQuestions; // Return 24 questions (3 per positiveType)
+
+    return liteQuestions; // Return 24 questions (3 per side of each dimension)
   }
   return []; // Default empty
 };
@@ -139,68 +161,69 @@ export default function App() {
 
       // Check for email confirmation
       if (_event === 'SIGNED_IN' && session?.user?.email_confirmed_at) {
-        // Check if this is a new confirmation by comparing timestamps
+        // Check if this is a new confirmation
         const confirmationTime = new Date(session.user.email_confirmed_at).getTime();
         const now = new Date().getTime();
         const isNewConfirmation = (now - confirmationTime) < 5000; // Within last 5 seconds
         
+        console.log('[Auth] SIGNED_IN event details:', {
+          event: _event,
+          confirmationTime,
+          now,
+          isNewConfirmation,
+          userId: session.user.id,
+          metadata: session.user.user_metadata
+        });
+
         if (isNewConfirmation) {
           setEmailConfirmed(true);
-          // Clear confirmation message after 4 seconds
           setTimeout(() => setEmailConfirmed(false), 4000);
           
           // Create user record after email confirmation
           try {
-            const { data: existingUser } = await supabase
+            console.log('[Auth] Checking for existing user record...');
+            const { data: existingUser, error: checkError } = await supabase
               .from('users')
               .select('id')
               .eq('auth_user_id', session.user.id)
               .single();
 
+            if (checkError) {
+              console.log('[Auth] Check existing user result:', { error: checkError });
+            }
+
             if (!existingUser) {
+              console.log('[Auth] No existing user found, creating new record...');
               // Generate a referral code
               const generatedCode = Math.random().toString(36).substring(2, 7).toUpperCase();
               
-              // Log metadata for debugging
-              console.log('Creating user record with metadata:', {
+              const newUser = {
                 auth_user_id: session.user.id,
                 username: session.user.user_metadata.username,
-                referred_by: session.user.user_metadata.referred_by,
-                full_metadata: session.user.user_metadata
-              });
+                referral_code: generatedCode,
+                referred_by: session.user.user_metadata.referred_by || null,
+                points: 0
+              };
+              
+              console.log('[Auth] Attempting to create user record:', newUser);
 
               // Create the user record
-              const { error: insertError } = await supabase
+              const { data: insertData, error: insertError } = await supabase
                 .from('users')
-                .insert({
-                  auth_user_id: session.user.id,
-                  username: session.user.user_metadata.username,
-                  referral_code: generatedCode,
-                  referred_by: session.user.user_metadata.referred_by || null,
-                  points: 0
-                });
+                .insert(newUser)
+                .select()
+                .single();
 
               if (insertError) {
-                console.error('Error creating user record:', insertError.message);
+                console.error('[Auth] Error creating user record:', insertError);
               } else {
-                console.log('User record created successfully:', {
-                  username: session.user.user_metadata.username,
-                  referred_by: session.user.user_metadata.referred_by,
-                  generatedCode,
-                  fullMetadata: session.user.user_metadata
-                });
+                console.log('[Auth] Successfully created user record:', insertData);
               }
-            }
-
-            // If we have guest result data, save it now
-            if (guestResultData) {
-              console.log('[Email Confirmed] Saving guest result data...');
-              await saveGuestResult(guestResultData);
-              // Clear guest data after successful save
-              setGuestResultData(null);
+            } else {
+              console.log('[Auth] Existing user found:', existingUser);
             }
           } catch (error) {
-            console.error('Error handling email confirmation:', error.message);
+            console.error('[Auth] Error handling email confirmation:', error);
           }
         }
       } else if (_event === 'SIGNED_IN') {
@@ -381,14 +404,14 @@ export default function App() {
   // --- Initiate Test (actual setup) ---
   const initiateTest = (type) => {
     const selectedQuestions = getTestQuestions(type);
-    const qpp = 4; // Set questions per page
+    const qpp = type === 'lite' ? 6 : 4; // 6 questions per page for lite mode, 4 for standard
     setTestType(type);
     setQuestions(selectedQuestions);
     setAnswers(Array(selectedQuestions.length).fill(undefined));
     setCurrentPageIndex(0);
     setQuestionsPerPage(qpp);
     setShowQuiz(true);
-        setShowResults(false);
+    setShowResults(false);
     setMbtiType(null);
     setPercentages({});
     window.history.pushState(null, '', `?test=${type}&page=1`);
