@@ -26,14 +26,14 @@ export const questions = [
   // Chain Loyalty: Maxi vs Omni (MO)
   { text: "I have bags on chains I can't even pronounce.", type: "MO", positiveType: "O" },
   { text: "My wallet has gas for 8 chains and I still bridged to the wrong one.", type: "MO", positiveType: "O" },
-  { text: "I've bridged so many times I qualify for frequent flyer status.", type: "MO", positiveType: "O" },
-  { text: "I've claimed airdrops I don't even remember farming.", type: "MO", positiveType: "O" },
-  { text: "I get excited when a new L2 launches — even if it has no dApps.", type: "MO", positiveType: "O" },
   { text: "I believe my chain is the one true chain and everything else is a rug.", type: "MO", positiveType: "M" },
   { text: "I've called other chains \"VC rugs\" in group chats.", type: "MO", positiveType: "M" },
   { text: "I rarely bridge — too risky and complex.", type: "MO", positiveType: "M" },
   { text: "I genuinely think this chain <enter name of your fav chain> will flip ETH or its the next Solana.", type: "MO", positiveType: "M" },
   { text: "I believe Bitcoin fixes more than just finance.", type: "MO", positiveType: "M" },
+  { text: "I've bridged so many times I qualify for frequent flyer status.", type: "MO", positiveType: "O" },
+  { text: "I've claimed airdrops I don't even remember farming.", type: "MO", positiveType: "O" },
+  { text: "I get excited when a new L2 launches — even if it has no dApps.", type: "MO", positiveType: "O" },
 
   // Asset Identity: Token vs NFT (TN)
   { text: "I mostly get alpha from on-chain tools and trading dashboards.", type: "TN", positiveType: "T" },
