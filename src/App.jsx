@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabaseClient'; // <-- Import supabase
 import { questions as initialQuestions, likertOptions, typeDescriptions } from './data'; // Removed dimensionSentences import
 import { calculateMBTI } from './calculateType';
@@ -86,45 +86,38 @@ const DimensionBar = ({ label, score }) => {
 // };
 
 export default function App() {
-  const [testType, setTestType] = useState(null); // 'lite', 'standard', or null
+  // --- State Declarations ---
+  const [testType, setTestType] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
-  const [currentPageIndex, setCurrentPageIndex] = useState(0); // New state
-  const [questionsPerPage, setQuestionsPerPage] = useState(0); // New state
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [questionsPerPage, setQuestionsPerPage] = useState(0);
   const [showResults, setShowResults] = useState(false);
   const [mbtiType, setMbtiType] = useState(null);
   const [showQuiz, setShowQuiz] = useState(false);
-  const [allQuestionsAnswered, setAllQuestionsAnswered] = useState(false); // Will be set when results are shown
-  const [showTypesPage, setShowTypesPage] = useState(false); // <-- New State
-
+  const [allQuestionsAnswered, setAllQuestionsAnswered] = useState(false);
+  const [showTypesPage, setShowTypesPage] = useState(false);
   const [percentages, setPercentages] = useState({});
-
-  // --- New Authentication State ---
   const [session, setSession] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [authMode, setAuthMode] = useState('login');
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [pendingTestType, setPendingTestType] = useState(null); // Store test type while login occurs
-  // --- New State for Guest Results --- 
+  const [pendingTestType, setPendingTestType] = useState(null);
   const [guestResultData, setGuestResultData] = useState(null);
-  // --- New state to store initial ref code ---
   const [initialReferralCode, setInitialReferralCode] = useState(null);
-  // --- State for Previous Results ---
   const [previousResults, setPreviousResults] = useState([]);
   const [loadingPreviousResults, setLoadingPreviousResults] = useState(false);
-  const [showHistoryPage, setShowHistoryPage] = useState(false); // To toggle history view
-  // --- State for Profile Dropdown ---
+  const [showHistoryPage, setShowHistoryPage] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isReferralCopied, setIsReferralCopied] = useState(false);
-  // --- State for Leaderboard ---
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [showLeaderboardPage, setShowLeaderboardPage] = useState(false);
-  // --- End State ---
-  const [emailConfirmed, setEmailConfirmed] = useState(false); // New state for email confirmation
-  const [loginSuccess, setLoginSuccess] = useState(false); // Add this new state
-  const [logoutSuccess, setLogoutSuccess] = useState(false); // Add this new state
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
+  const [logoutSuccess, setLogoutSuccess] = useState(false);
+  const [copyButtonText, setCopyButtonText] = useState('Copy Referral Link');
 
   const dimensions = [
     { key: 'AB', name: 'Risk Instinct', type1: 'Ape', type2: 'Builder', emoji: '🦍/👷' },
@@ -178,83 +171,50 @@ export default function App() {
   // If all answered, set to length to avoid issues, or -1 if no questions yet
   const firstUnansweredIndex = activeQuestionGlobalIndex === -1 && questions.length > 0 ? questions.length : activeQuestionGlobalIndex;
 
-  // --- Effects --- 
-  useEffect(() => {
-    console.log('[Auth] Setting up auth state change listener...');
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      console.log('[Auth] Auth state changed:', { event: _event, userId: session?.user?.id });
-      setSession(session);
-
-      // Check for email confirmation
-      if (_event === 'SIGNED_IN' && session?.user?.email_confirmed_at) {
-        // Check if this is a new confirmation
-        const confirmationTime = new Date(session.user.email_confirmed_at).getTime();
-        const now = new Date().getTime();
-        const isNewConfirmation = (now - confirmationTime) < 5000; // Within last 5 seconds
-        
-        console.log('[Auth] SIGNED_IN event details:', {
-          event: _event,
-          confirmationTime,
-          now,
-          isNewConfirmation,
-          userId: session.user.id,
-          metadata: session.user.user_metadata
-        });
-
-        if (isNewConfirmation) {
-          console.log('[Auth] New email confirmation detected, creating user record...');
-          setEmailConfirmed(true);
-          setTimeout(() => setEmailConfirmed(false), 4000);
-          
-          try {
-            // Check if user record already exists
-            const { data: existingUser, error: checkError } = await supabase
-              .from('users')
-              .select('id')
-              .eq('auth_user_id', session.user.id)
-              .single();
-
-            if (checkError && checkError.code !== 'PGRST116') {
-              console.error('[Auth] Error checking existing user:', checkError);
-              return;
-            }
-
-            if (!existingUser) {
-              console.log('[Auth] No existing user record found, creating new record...');
-              // Generate a referral code
-              const generatedCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-              
-              const { error: insertError } = await supabase
-                .from('users')
-                .insert({
-                  auth_user_id: session.user.id,
-                  username: session.user.user_metadata.username,
-                  referral_code: generatedCode,
-                  referred_by: session.user.user_metadata.referred_by || null,
-                  points: 0
-                });
-
-              if (insertError) {
-                console.error('[Auth] Error creating user record:', insertError);
-              } else {
-                console.log('[Auth] User record created successfully');
-              }
-            } else {
-              console.log('[Auth] User record already exists:', existingUser);
-            }
-          } catch (error) {
-            console.error('[Auth] Error handling email confirmation:', error);
-          }
-        }
+  // --- Helper Functions ---
+  const checkUrlForGuestResults = () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const encodedData = params.get('guestData');
+      if (encodedData) {
+        const decodedData = JSON.parse(atob(encodedData));
+        console.log('[Auth] Found guest results in URL:', decodedData);
+        setGuestResultData(decodedData);
+        return decodedData;
       }
-    });
+    } catch (error) {
+      console.error('[Auth] Error parsing guest results from URL:', error);
+    }
+    return null;
+  };
 
-    return () => {
-      console.log('[Auth] Cleaning up auth state change listener...');
-      subscription?.unsubscribe();
+  const handleQuizComplete = (type, percentages, testType) => {
+    console.log('[Quiz] Quiz completed:', { type, percentages, testType });
+    
+    const guestResult = {
+      type,
+      percentages,
+      testType,
+      timestamp: new Date().toISOString()
     };
-  }, []);
+    
+    // Save to both state and URL
+    setGuestResultData(guestResult);
+    
+    // Store in URL as base64 encoded JSON
+    const encodedResults = btoa(JSON.stringify(guestResult));
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.set('results', type);
+    newUrl.searchParams.set('guestData', encodedResults);
+    window.history.pushState(null, '', newUrl.toString());
+    
+    setMbtiType(type);
+    setPercentages(percentages);
+    setShowResults(true);
+    setShowQuiz(false);
+  };
 
+  // --- Effects ---
   useEffect(() => {
     // --- Supabase Auth Listener --- 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -281,36 +241,48 @@ export default function App() {
           setEmailConfirmed(true);
           setTimeout(() => setEmailConfirmed(false), 4000);
           
-          // Create user record after email confirmation
           try {
             console.log('[Auth] Checking for existing user record...');
+            // Check if user record already exists
             const { data: existingUser, error: checkError } = await supabase
               .from('users')
               .select('id')
               .eq('auth_user_id', session.user.id)
               .single();
 
-            if (checkError) {
-              console.log('[Auth] Check existing user result:', { error: checkError });
+            if (checkError && checkError.code !== 'PGRST116') {
+              console.error('[Auth] Error checking existing user:', checkError);
+              return;
             }
 
+            // Only create user record if it doesn't exist
             if (!existingUser) {
-              console.log('[Auth] No existing user found, creating new record...');
-              // Generate a referral code
-              const generatedCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+              console.log('[Auth] No existing user record found, creating new record...');
               
+              const userMetadata = session.user.user_metadata;
+              console.log('[Auth] Raw user metadata:', userMetadata);
+              
+              // Fix: Access referred_by directly from user_metadata
+              const referredByCode = userMetadata.referred_by;
+              
+              console.log('[Auth] Processing user data:', {
+                metadata: userMetadata,
+                referredByCode: referredByCode,
+                session_user: session.user,
+                auth_id: session.user.id
+              });
+
               const newUser = {
                 auth_user_id: session.user.id,
-                username: session.user.user_metadata.username,
-                referral_code: generatedCode,
-                referred_by: session.user.user_metadata.referred_by || null,
+                username: userMetadata.username,
+                referral_code: userMetadata.referral_code,
+                referred_by: userMetadata.referred_by,  // Fixed: Use the correct field from metadata
                 points: 0
               };
               
-              console.log('[Auth] Attempting to create user record:', newUser);
-
-              // Create the user record
-              const { data: insertData, error: insertError } = await supabase
+              console.log('[Auth] Attempting to create user with data:', newUser);
+              
+              const { data: newUserData, error: insertError } = await supabase
                 .from('users')
                 .insert(newUser)
                 .select()
@@ -318,11 +290,19 @@ export default function App() {
 
               if (insertError) {
                 console.error('[Auth] Error creating user record:', insertError);
-              } else {
-                console.log('[Auth] Successfully created user record:', insertData);
+                console.error('[Auth] Full error details:', {
+                  code: insertError.code,
+                  msg: insertError.message,
+                  details: insertError.details,
+                  hint: insertError.hint
+                });
+                return;
               }
+              
+              console.log('[Auth] User record created successfully:', newUserData);
+              userData = newUserData;
             } else {
-              console.log('[Auth] Existing user found:', existingUser);
+              console.log('[Auth] User record already exists, skipping creation');
             }
           } catch (error) {
             console.error('[Auth] Error handling email confirmation:', error);
@@ -414,19 +394,83 @@ export default function App() {
       }
 
       // --- Check for Guest Data to Save --- 
-      if (guestResultData && userProfile) { // Make sure profile is loaded before saving
-        console.log('[Effect] Detected guest data and logged-in user, attempting to save...');
-        saveGuestResult(guestResultData);
+      if (guestResultData && userProfile) {
+        console.log('[Effect] Detected guest data and logged-in user, attempting to save...', {
+          guestData: guestResultData,
+          userProfile: userProfile
+        });
         
-        // After saving guest result, show the results
-        if (guestResultData.type) {
-          setMbtiType(guestResultData.type);
-          setPercentages(guestResultData.percentages);
-          setShowResults(true);
-          setShowQuiz(false);
-          setAllQuestionsAnswered(true);
-          window.history.pushState(null, '', `?results=${guestResultData.type}`);
-        }
+        // Ensure we save the result after email confirmation
+        const saveResult = async () => {
+          try {
+            // Check if user already has results
+            const { error: resultsError, count } = await supabase
+              .from('results')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', userProfile.id);
+              
+            if (resultsError) throw resultsError;
+            
+            const isFirstResult = count === 0;
+            console.log(`[Effect] Is this the user's first result? ${isFirstResult}`);
+
+            // Save the result first
+            const { error: insertError } = await supabase
+              .from('results')
+              .insert({
+                user_id: userProfile.id,
+                mbti_type: guestResultData.type,
+                percentages: guestResultData.percentages,
+                test_type: guestResultData.testType
+              });
+
+            if (insertError) throw insertError;
+            console.log('[Effect] Guest result saved successfully!');
+
+            // Award referral points if applicable (after saving first result)
+            if (isFirstResult && userProfile.referred_by) {
+              console.log(`[Effect] First result saved and user was referred by ${userProfile.referred_by}. Awarding point.`);
+              const { data: referrerData, error: referrerError } = await supabase
+                .from('users')
+                .select('id, points')
+                .eq('referral_code', userProfile.referred_by)
+                .single();
+                
+              if (referrerError) throw new Error(`Error finding referrer: ${referrerError.message}`);
+                 
+              if (referrerData) {
+                const newPoints = (referrerData.points || 0) + 1;
+                console.log(`[Effect] Updating referrer points from ${referrerData.points} to ${newPoints}`);
+                const { error: updateError } = await supabase
+                  .from('users')
+                  .update({ points: newPoints })
+                  .eq('id', referrerData.id);
+                      
+                if (updateError) {
+                  console.error(`[Effect] Error updating referrer points: ${updateError.message}`);
+                } else {
+                  console.log(`[Effect] Referrer ${userProfile.referred_by} points updated to ${newPoints}`);
+                }
+              }
+            }
+
+            // Clear guest data after successful save
+            setGuestResultData(null);
+            console.log('[Effect] Cleared guestResultData state after successful save.');
+
+            // Show the results
+            setMbtiType(guestResultData.type);
+            setPercentages(guestResultData.percentages);
+            setShowResults(true);
+            setShowQuiz(false);
+            window.history.pushState(null, '', `?results=${guestResultData.type}`);
+
+          } catch (error) {
+            console.error('[Effect] Error saving guest result:', error.message);
+          }
+        };
+
+        saveResult();
       } 
       // --- End Check --- 
       
@@ -436,7 +480,7 @@ export default function App() {
         setPendingTestType(null); 
       }
     } 
-  }, [session, userProfile, loadingProfile, pendingTestType, guestResultData]); // Add guestResultData and userProfile to dependencies
+  }, [session, userProfile, loadingProfile, pendingTestType, guestResultData]); // Add guestResultData to dependencies
 
   // Effect to scroll to the TOP of the page when the page index changes
   useEffect(() => {
@@ -596,9 +640,15 @@ export default function App() {
   };
 
   const handleViewResults = async (force = true) => { 
+    console.log('[handleViewResults] Starting results calculation...');
     const result = calculateMBTI(answers, questions); 
     const mbtiTypeCode = result.type;
     const calculatedPercentages = result.normalizedScores;
+
+    console.log('[handleViewResults] Calculation results:', {
+      type: mbtiTypeCode,
+      percentages: calculatedPercentages
+    });
 
     if (mbtiTypeCode) {
       setMbtiType(mbtiTypeCode);
@@ -610,75 +660,117 @@ export default function App() {
 
       // --- Store or Save Result --- 
       if (session?.user) {
+        console.log('[handleViewResults] User is logged in, preparing to save results...');
         setGuestResultData(null); // Clear any potential stale guest data if user is logged in
         try {
-          const { data: userProfileData } = await supabase
+          console.log('[handleViewResults] Fetching user profile data...');
+          const { data: userProfileData, error: profileError } = await supabase
              .from('users')
              .select('id, referred_by, points') // Need user ID from our table and referral info
              .eq('auth_user_id', session.user.id)
              .single();
 
-          if (!userProfileData) {
-             throw new Error('Could not find user profile to save result.');
+          if (profileError) {
+            console.error('[handleViewResults] Error fetching user profile:', profileError);
+            throw new Error('Could not fetch user profile.');
           }
+
+          if (!userProfileData) {
+            console.error('[handleViewResults] No user profile found');
+            throw new Error('Could not find user profile to save result.');
+          }
+
+          console.log('[handleViewResults] User profile found:', userProfileData);
           
           // Check if user already has results to prevent double referral points
+          console.log('[handleViewResults] Checking for existing results...');
           const { data: existingResults, error: resultsError } = await supabase
             .from('results')
             .select('id')
             .eq('user_id', userProfileData.id)
             .limit(1); 
             
-          if (resultsError) throw resultsError;  
+          if (resultsError) {
+            console.error('[handleViewResults] Error checking existing results:', resultsError);
+            throw resultsError;
+          }
             
           const isFirstResult = existingResults.length === 0;
+          console.log('[handleViewResults] Is first result?', isFirstResult);
 
+          // Save the new result
+          console.log('[handleViewResults] Saving new result...');
           const { error: insertError } = await supabase
             .from('results')
             .insert({
-              user_id: userProfileData.id, // Use ID from our users table
+              user_id: userProfileData.id,
               mbti_type: mbtiTypeCode,
               percentages: calculatedPercentages,
-              test_type: testType // Use the stored testType state
+              test_type: testType
             });
-          if (insertError) throw insertError;
+
+          if (insertError) {
+            console.error('[handleViewResults] Error saving result:', insertError);
+            throw insertError;
+          }
+
+          console.log('[handleViewResults] Result saved successfully!');
 
           // --- Award referral points if applicable (on first result) ---
           if (isFirstResult && userProfileData.referred_by) {
+             console.log('[handleViewResults] Processing referral points...');
              const { data: referrerData, error: referrerError } = await supabase
                 .from('users')
                 .select('id, points')
                 .eq('referral_code', userProfileData.referred_by)
                 .single();
                 
-             if (referrerError) throw new Error(`Error finding referrer: ${referrerError.message}`);
+             if (referrerError) {
+               console.error('[handleViewResults] Error finding referrer:', referrerError);
+               throw new Error(`Error finding referrer: ${referrerError.message}`);
+             }
              
              if (referrerData) {
-                const newPoints = (referrerData.points || 0) + 1; // Award 1 point
+                const newPoints = (referrerData.points || 0) + 1;
+                console.log('[handleViewResults] Updating referrer points:', {
+                  referrerId: referrerData.id,
+                  oldPoints: referrerData.points,
+                  newPoints: newPoints
+                });
+
                 const { error: updateError } = await supabase
                   .from('users')
                   .update({ points: newPoints })
                   .eq('id', referrerData.id);
                   
-                if (updateError) throw new Error(`Error updating referrer points: ${updateError.message}`);
+                if (updateError) {
+                  console.error('[handleViewResults] Error updating referrer points:', updateError);
+                  throw new Error(`Error updating referrer points: ${updateError.message}`);
+                }
+
+                console.log('[handleViewResults] Referral points awarded successfully');
              }
           }
           // --- End referral points logic ---
 
         } catch (error) {
-          console.error('Error saving result or awarding points:', error.message);
+          console.error('[handleViewResults] Error in save process:', error.message);
+          // Consider showing an error message to the user
         }
       } else {
         // --- User is a GUEST: Store results temporarily --- 
+        console.log('[handleViewResults] User is guest, storing results temporarily');
         setGuestResultData({
           type: mbtiTypeCode,
           percentages: calculatedPercentages,
-          testType: testType // Use the current testType state
+          testType: testType
         });
         // --- End Guest Store --- 
       }
       // --- End Store or Save Result --- 
 
+    } else {
+      console.error('[handleViewResults] Failed to calculate MBTI type');
     }
   };
 
@@ -789,25 +881,13 @@ export default function App() {
       // Check if user already has results (important for referral points)
       const { error: resultsError, count } = await supabase
         .from('results')
-        .select('id', { count: 'exact', head: true }) // More efficient count
+        .select('id', { count: 'exact', head: true })
         .eq('user_id', userProfile.id);
         
       if (resultsError) throw resultsError;  
         
-      const isFirstResult = count === 0; // Check if this is the first result
+      const isFirstResult = count === 0;
       console.log(`[saveGuestResult] Is this the user's first result? ${isFirstResult}`);
-
-      // Insert the result
-      const { error: insertError } = await supabase
-        .from('results')
-        .insert({
-          user_id: userProfile.id,
-          mbti_type: resultToSave.type,
-          percentages: resultToSave.percentages,
-          test_type: resultToSave.testType
-        });
-      if (insertError) throw insertError;
-      console.log('[saveGuestResult] Guest result saved successfully!');
 
       // Award referral points if applicable (on first result)
       if (isFirstResult && userProfile.referred_by) {
@@ -818,15 +898,16 @@ export default function App() {
             .eq('referral_code', userProfile.referred_by)
             .single();
             
-         if (referrerError && referrerError.code !== 'PGRST116') { // Ignore error if referrer not found (code PGRST116)
-             console.error(`[saveGuestResult] Error finding referrer: ${referrerError.message}`);
-         } else if (referrerData) {
+         if (referrerError) throw new Error(`Error finding referrer: ${referrerError.message}`);
+             
+         if (referrerData) {
             const newPoints = (referrerData.points || 0) + 1;
+            console.log(`[saveGuestResult] Updating referrer points from ${referrerData.points} to ${newPoints}`);
             const { error: updateError } = await supabase
               .from('users')
               .update({ points: newPoints })
               .eq('id', referrerData.id);
-              
+                  
             if (updateError) {
                 console.error(`[saveGuestResult] Error updating referrer points: ${updateError.message}`);
             } else {
@@ -836,6 +917,18 @@ export default function App() {
             console.warn(`[saveGuestResult] Referrer with code ${userProfile.referred_by} not found.`);
          }
       }
+
+      // Now save the result
+      const { error: insertError } = await supabase
+        .from('results')
+        .insert({
+          user_id: userProfile.id,
+          mbti_type: resultToSave.type,
+          percentages: resultToSave.percentages,
+          test_type: resultToSave.testType
+        });
+      if (insertError) throw insertError;
+      console.log('[saveGuestResult] Guest result saved successfully!');
 
       // Only clear guest data after successful save
       setGuestResultData(null);
@@ -848,7 +941,6 @@ export default function App() {
   };
 
   // --- New Copy Referral Link Function ---
-  const [copyButtonText, setCopyButtonText] = useState('Copy Referral Link'); // Updated default text
   const handleCopyReferralLink = (referralCode) => {
     if (!referralCode) return;
     const link = `${window.location.origin}/?ref=${referralCode}`;
