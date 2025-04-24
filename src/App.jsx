@@ -180,6 +180,82 @@ export default function App() {
 
   // --- Effects --- 
   useEffect(() => {
+    console.log('[Auth] Setting up auth state change listener...');
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('[Auth] Auth state changed:', { event: _event, userId: session?.user?.id });
+      setSession(session);
+
+      // Check for email confirmation
+      if (_event === 'SIGNED_IN' && session?.user?.email_confirmed_at) {
+        // Check if this is a new confirmation
+        const confirmationTime = new Date(session.user.email_confirmed_at).getTime();
+        const now = new Date().getTime();
+        const isNewConfirmation = (now - confirmationTime) < 5000; // Within last 5 seconds
+        
+        console.log('[Auth] SIGNED_IN event details:', {
+          event: _event,
+          confirmationTime,
+          now,
+          isNewConfirmation,
+          userId: session.user.id,
+          metadata: session.user.user_metadata
+        });
+
+        if (isNewConfirmation) {
+          console.log('[Auth] New email confirmation detected, creating user record...');
+          setEmailConfirmed(true);
+          setTimeout(() => setEmailConfirmed(false), 4000);
+          
+          try {
+            // Check if user record already exists
+            const { data: existingUser, error: checkError } = await supabase
+              .from('users')
+              .select('id')
+              .eq('auth_user_id', session.user.id)
+              .single();
+
+            if (checkError && checkError.code !== 'PGRST116') {
+              console.error('[Auth] Error checking existing user:', checkError);
+              return;
+            }
+
+            if (!existingUser) {
+              console.log('[Auth] No existing user record found, creating new record...');
+              // Generate a referral code
+              const generatedCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+              
+              const { error: insertError } = await supabase
+                .from('users')
+                .insert({
+                  auth_user_id: session.user.id,
+                  username: session.user.user_metadata.username,
+                  referral_code: generatedCode,
+                  referred_by: session.user.user_metadata.referred_by || null,
+                  points: 0
+                });
+
+              if (insertError) {
+                console.error('[Auth] Error creating user record:', insertError);
+              } else {
+                console.log('[Auth] User record created successfully');
+              }
+            } else {
+              console.log('[Auth] User record already exists:', existingUser);
+            }
+          } catch (error) {
+            console.error('[Auth] Error handling email confirmation:', error);
+          }
+        }
+      }
+    });
+
+    return () => {
+      console.log('[Auth] Cleaning up auth state change listener...');
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     // --- Supabase Auth Listener --- 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log("Auth event:", _event, session);
@@ -520,22 +596,9 @@ export default function App() {
   };
 
   const handleViewResults = async (force = true) => { 
-    console.log('[handleViewResults] Answers before calculation:', answers);
-    // Pass the current 'questions' state to the calculation function
     const result = calculateMBTI(answers, questions); 
     const mbtiTypeCode = result.type;
     const calculatedPercentages = result.normalizedScores;
-
-    console.log("MBTI Result Type:", mbtiTypeCode);
-    console.log("Calculated Percentages:", calculatedPercentages);
-    const typeFromPercentages = 
-      (calculatedPercentages.AB >= 50 ? 'A' : 'B') + 
-      (calculatedPercentages.DP >= 50 ? 'D' : 'P') + 
-      (calculatedPercentages.MO >= 50 ? 'M' : 'O') + 
-      (calculatedPercentages.TN >= 50 ? 'T' : 'N');
-    
-    console.log("Type derived from percentages:", typeFromPercentages);
-    console.log("Types match:", typeFromPercentages === mbtiTypeCode);
 
     if (mbtiTypeCode) {
       setMbtiType(mbtiTypeCode);
@@ -547,7 +610,6 @@ export default function App() {
 
       // --- Store or Save Result --- 
       if (session?.user) {
-        console.log('User logged in, attempting to save results...');
         setGuestResultData(null); // Clear any potential stale guest data if user is logged in
         try {
           const { data: userProfileData } = await supabase
@@ -580,11 +642,9 @@ export default function App() {
               test_type: testType // Use the stored testType state
             });
           if (insertError) throw insertError;
-          console.log('Result saved successfully!');
 
           // --- Award referral points if applicable (on first result) ---
           if (isFirstResult && userProfileData.referred_by) {
-             console.log(`User was referred by ${userProfileData.referred_by}. Awarding point.`);
              const { data: referrerData, error: referrerError } = await supabase
                 .from('users')
                 .select('id, points')
@@ -601,20 +661,15 @@ export default function App() {
                   .eq('id', referrerData.id);
                   
                 if (updateError) throw new Error(`Error updating referrer points: ${updateError.message}`);
-                console.log(`Referrer ${userProfileData.referred_by} points updated to ${newPoints}`);
-             } else {
-                console.warn(`Referrer with code ${userProfileData.referred_by} not found.`);
              }
           }
           // --- End referral points logic ---
 
         } catch (error) {
           console.error('Error saving result or awarding points:', error.message);
-          // Optionally show an error message to the user
         }
       } else {
         // --- User is a GUEST: Store results temporarily --- 
-        console.log('Guest user, storing results temporarily in state.');
         setGuestResultData({
           type: mbtiTypeCode,
           percentages: calculatedPercentages,
@@ -624,8 +679,6 @@ export default function App() {
       }
       // --- End Store or Save Result --- 
 
-    } else {
-      console.error("Failed to calculate MBTI type.");
     }
   };
 

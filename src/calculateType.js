@@ -11,8 +11,6 @@ export function calculateMBTI(answers, testQuestions) {
 
   // Make sure we have questions to iterate over
   if (!testQuestions || testQuestions.length === 0) {
-    console.error("calculateMBTI called without valid testQuestions");
-    // Return a default or error state
     return { type: 'ERROR', normalizedScores: { AB: 50, DP: 50, MO: 50, TN: 50 } };
   }
 
@@ -33,24 +31,9 @@ export function calculateMBTI(answers, testQuestions) {
     const isPositiveType = question.positiveType === dimension[0];
     const scoreChange = isPositiveType ? answer : -answer;
     
-    // Debug logging for MO dimension (kept for now)
-    if (dimension === 'MO') {
-      console.log(`MO Question ${index + 1}:`, {
-        text: question.text,
-        positiveType: question.positiveType,
-        answer,
-        scoreChange,
-        currentScore: scores[dimension],
-        dimension,
-        isPositiveType
-      });
-    }
-    
     // Check if the dimension exists in scores before updating
     if (scores.hasOwnProperty(dimension)) {
       scores[dimension] += scoreChange;
-    } else {
-      console.warn(`Dimension "${dimension}" not found in scores object for question index ${index}`);
     }
   });
 
@@ -87,21 +70,16 @@ export function calculateMBTI(answers, testQuestions) {
     normalizedScores[dim] = normalizedScore;
   });
 
-  console.log("Raw scores:", scores);
-  console.log("Normalized scores (0-100):", normalizedScores);
-
-  // CRITICAL: Determine the type based on normalized scores instead of raw scores
-  // This ensures consistency with the displayed percentages in the UI
+  // Determine the type based on normalized scores
   const firstLetter = normalizedScores.AB >= 50 ? 'A' : 'B';  // Risk: Ape (>50%) vs Builder (<50%)
   const secondLetter = normalizedScores.DP >= 50 ? 'D' : 'P'; // Holding: Diamond (>50%) vs Paper (<50%)
   const thirdLetter = normalizedScores.MO >= 50 ? 'M' : 'O';  // Chain: Maxi (>50%) vs Omni (<50%)
   const fourthLetter = normalizedScores.TN >= 50 ? 'T' : 'N'; // Asset: Token (>50%) vs NFT (<50%)
 
   const type = firstLetter + secondLetter + thirdLetter + fourthLetter;
-  console.log("Final type:", type);
 
   return {
     type, 
-    normalizedScores // Return the normalized scores to help with debugging
+    normalizedScores
   };
 } 
