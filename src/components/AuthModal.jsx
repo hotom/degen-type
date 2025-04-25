@@ -1,7 +1,7 @@
 import React from 'react';
 
-// Updated modal structure with Guest option
-export default function AuthModal({ isOpen, onClose, children, onContinueAsGuest }) {
+// Updated modal structure without Guest option
+export default function AuthModal({ isOpen, onClose, children }) {
   if (!isOpen) return null;
 
   return (
@@ -19,21 +19,6 @@ export default function AuthModal({ isOpen, onClose, children, onContinueAsGuest
         <div className="mb-6">
             {children}
         </div>
-        
-        {/* Divider */} 
-        <div className="relative flex items-center mb-4">
-          <div className="flex-grow border-t border-slate-600"></div>
-          <span className="flex-shrink mx-4 text-slate-400 text-sm">OR</span>
-          <div className="flex-grow border-t border-slate-600"></div>
-        </div>
-
-        {/* Continue as Guest Button */} 
-        <button 
-          onClick={onContinueAsGuest} 
-          className="w-full py-2 px-4 border border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-200 bg-slate-700 hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-cyan-500"
-        >
-          Continue as Guest
-        </button>
       </div>
     </div>
   );

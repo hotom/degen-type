@@ -1473,6 +1473,7 @@ export default function App() {
                             <p className="text-slate-300 text-sm leading-relaxed">{result.detailedDescription}</p>
                           </div>
                         )}
+                        
 
                         {/* Personality Traits Section */}
                         <div className="mt-8 mb-4 pt-6 border-t border-slate-700/50">
@@ -1536,9 +1537,16 @@ export default function App() {
                           </div>
                         </div>
 
+                        {/* Description */}
+                        <div className="mb-4 text-slate-300">
+                          <p className="text-lg leading-relaxed">
+                            {result.description}
+                          </p>
+                        </div>
+
                         {/* Guest Prompt */}
                         {!session && guestResultData && (
-                          <div className="mt-8 mb-6 p-5 bg-gradient-to-r from-teal-900/30 to-cyan-900/30 border border-teal-600/50 rounded-lg text-center shadow-inner"> {/* Kept existing guest prompt styling */}
+                          <div className="mt-6 mb-4 p-5 bg-gradient-to-r from-teal-900/30 to-cyan-900/30 border border-teal-600/50 rounded-lg text-center shadow-inner">
                             <p className="font-semibold text-teal-300 mb-2">Enjoy your results?</p>
                             <p className="text-sm text-slate-300 mb-3">Create a free account to save your type, track changes, and get referral points!</p>
                 <button 
@@ -1577,7 +1585,7 @@ export default function App() {
                         )}
 
                         {/* Button Group */}
-                        <div className={`button-group flex flex-col sm:flex-row justify-center gap-4 ${!session && guestResultData ? 'mt-4' : 'mt-8'} pt-6 border-t border-slate-700/50`}>
+                        <div className={`button-group flex flex-col sm:flex-row justify-center gap-4 ${!session && guestResultData ? 'mt-3' : 'mt-6'} pt-4 border-t border-slate-700/50`}>
                           <button
                             onClick={handleShare}
                             className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold py-2 px-6 rounded-full shadow hover:shadow-lg transform hover:-translate-y-px transition duration-200 ease-in-out"
